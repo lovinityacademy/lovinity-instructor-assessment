@@ -179,6 +179,80 @@ if filtered_rows:
         for question, answer in english_answers.items():
             st.write(f"{question}: {answer}")
 
+# -----------------------------------
+# Applicant Recordings
+# -----------------------------------
+
+st.divider()
+st.header("Applicant Recordings")
+
+if filtered_rows:
+    try:
+        recording_result = (
+            supabase.table("instructor_recordings")
+            .select("*")
+            .eq("application_id", application_id)
+            .order("recording_type")
+            .order("task_number")
+            .execute()
+        )
+
+        recordings = recording_result.data or []
+
+        st.write(f"Recordings found: {len(recordings)}/7")
+
+        recording_labels = {
+            "pronunciation": "Pronunciation",
+            "speaking": "Speaking",
+            "teaching_demo": "Teaching Demonstration"
+        }
+
+        if not recordings:
+            st.info("No recordings found for this applicant.")
+
+        for recording in recordings:
+            recording_type = recording["recording_type"]
+            task_number = recording["task_number"]
+            storage_path = recording["storage_path"]
+
+            label = recording_labels.get(
+                recording_type,
+                recording_type
+            )
+
+            st.subheader(f"{label} - Task {task_number}")
+
+            try:
+                audio_bytes = (
+                    supabase.storage
+                    .from_("instructor-recordings")
+                    .download(storage_path)
+                )
+
+                extension = storage_path.rsplit(".", 1)[-1].lower()
+
+                mime_types = {
+                    "wav": "audio/wav",
+                    "webm": "audio/webm",
+                    "ogg": "audio/ogg",
+                    "m4a": "audio/mp4",
+                    "mp3": "audio/mpeg"
+                }
+
+                st.audio(
+                    audio_bytes,
+                    format=mime_types.get(extension, "audio/wav")
+                )
+
+            except Exception:
+                st.warning("This recording could not be loaded.")
+
+    except Exception:
+        st.error("Could not load recording information.")
+
+else:
+    st.info("Select a matching applicant to view recordings.")
+
     else:
         st.info("No English answers available.")
 
