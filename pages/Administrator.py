@@ -112,3 +112,21 @@ for row in rows:
 
     if search_match and decision_match:
         filtered_rows.append(row)
+
+# -----------------------------------
+# Display Applicant Results
+# -----------------------------------
+
+st.divider()
+st.subheader("Applicant Results")
+
+st.metric("Matching Applicants", len(filtered_rows))
+
+if filtered_rows:
+    st.dataframe(
+        filtered_rows,
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.info("No applicants match your search.")
