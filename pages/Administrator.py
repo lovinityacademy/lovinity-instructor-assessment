@@ -130,3 +130,57 @@ if filtered_rows:
     )
 else:
     st.info("No applicants match your search.")
+
+# -----------------------------------
+# Applicant Details
+# -----------------------------------
+
+st.divider()
+st.header("Applicant Details")
+
+if filtered_rows:
+    applicant_options = {
+        f"{row['Applicant']} | {row['Email']} | {row['Application ID'][:8]}": row["Application ID"]
+        for row in filtered_rows
+    }
+
+    selected_label = st.selectbox(
+        "Select an Applicant",
+        list(applicant_options.keys())
+    )
+
+    application_id = applicant_options[selected_label]
+
+    selected_app = next(
+        app for app in applications
+        if app["id"] == application_id
+    )
+
+    st.write("**Name:**", selected_app["applicant_name"])
+    st.write("**Email:**", selected_app["applicant_email"])
+    st.write("**Application ID:**", application_id)
+    st.write("**Status:**", selected_app["status"])
+    st.write("**Submitted At:**", selected_app["submitted_at"])
+
+    st.metric(
+        "English Test Score",
+        f"{selected_app.get('english_score', 0)}/5"
+    )
+
+    st.subheader("English Test Answers")
+
+    english_answers = selected_app.get("english_answers")
+
+    if isinstance(english_answers, list):
+        for i, answer in enumerate(english_answers):
+            st.write(f"Q{i + 1}: {answer}")
+
+    elif isinstance(english_answers, dict):
+        for question, answer in english_answers.items():
+            st.write(f"{question}: {answer}")
+
+    else:
+        st.info("No English answers available.")
+
+else:
+    st.info("Select a matching applicant to view details.")
