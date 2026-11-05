@@ -119,3 +119,65 @@ for i, sentence in enumerate(sentences):
             "Recording is available for playback. "
             "AI pronunciation scoring is not enabled yet."
         )
+
+# -----------------------------------
+# Speaking Assessment
+# -----------------------------------
+
+st.divider()
+
+st.header("Speaking Assessment")
+
+st.write(
+    "Answer each question in English. "
+    "Speak clearly and provide detailed answers."
+)
+
+speaking_tasks = [
+    {
+        "title": "Self Introduction",
+        "question": (
+            "Please introduce yourself and explain "
+            "your experience with English."
+        )
+    },
+    {
+        "title": "Teaching Explanation",
+        "question": (
+            "How would you explain the difference between "
+            "'I have been to London' and "
+            "'I went to London' to a beginner?"
+        )
+    },
+    {
+        "title": "Classroom Situation",
+        "question": (
+            "A student is afraid of making mistakes "
+            "when speaking English. "
+            "How would you encourage them?"
+        )
+    }
+]
+
+for i, task in enumerate(speaking_tasks):
+    st.subheader(
+        f"Speaking Task {i + 1}: {task['title']}"
+    )
+
+    st.info(task["question"])
+
+    st.write("Recommended speaking time: 1-2 minutes.")
+
+    recording = st.audio_input(
+        f"Record your answer - Task {i + 1}",
+        key=f"speaking_{i}"
+    )
+
+    if recording is not None:
+        st.success("Answer recorded successfully!")
+        st.audio(recording)
+        st.caption(
+            "Your answer has been recorded for "
+            "playback in this session. "
+            "It has not been submitted to an examiner."
+        )
