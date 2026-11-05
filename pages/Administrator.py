@@ -28,16 +28,13 @@ if not st.session_state.admin_authenticated:
             "Administrator Password",
             type="password"
         )
-
         login = st.form_submit_button("Log In")
 
     if login:
         try:
             correct_password = st.secrets["ADMIN_PASSWORD"]
         except KeyError:
-            st.error(
-                "Administrator password is not configured."
-            )
+            st.error("Administrator password is not configured.")
             st.stop()
 
         if hmac.compare_digest(
@@ -74,14 +71,10 @@ try:
         .limit(100)
         .execute()
     )
-
     applications = result.data or []
 
 except Exception:
-    st.error(
-        "Could not load applications. "
-        "Please check the database connection."
-    )
+    st.error("Could not load applications.")
     st.stop()
 
 st.metric("Applications Loaded", len(applications))
@@ -105,7 +98,6 @@ selected_label = st.selectbox(
 )
 
 selected_app = application_options[selected_label]
-
 application_id = selected_app["id"]
 
 # -----------------------------------
@@ -115,30 +107,11 @@ application_id = selected_app["id"]
 st.divider()
 st.header("Applicant Details")
 
-st.write(
-    "**Name:**",
-    selected_app["applicant_name"]
-)
-
-st.write(
-    "**Email:**",
-    selected_app["applicant_email"]
-)
-
-st.write(
-    "**Application ID:**",
-    application_id
-)
-
-st.write(
-    "**Status:**",
-    selected_app["status"]
-)
-
-st.write(
-    "**Submitted At:**",
-    selected_app["submitted_at"]
-)
+st.write("**Name:**", selected_app["applicant_name"])
+st.write("**Email:**", selected_app["applicant_email"])
+st.write("**Application ID:**", application_id)
+st.write("**Status:**", selected_app["status"])
+st.write("**Submitted At:**", selected_app["submitted_at"])
 
 st.metric(
     "English Test Score",
@@ -147,13 +120,14 @@ st.metric(
 
 st.subheader("English Test Answers")
 
-english_answers = selected_app.get(
-    "english_answers"
-)
+english_answers = selected_app.get("english_answers")
 
 if isinstance(english_answers, list):
     for i, answer in enumerate(english_answers):
         st.write(f"Q{i + 1}: {answer}")
+elif isinstance(english_answers, dict):
+    for question, answer in english_answers.items():
+        st.write(f"{question}: {answer}")
 else:
     st.info("No English answers available.")
 
@@ -173,7 +147,6 @@ try:
         .order("task_number")
         .execute()
     )
-
     recordings = recording_result.data or []
 
 except Exception:
@@ -207,7 +180,7 @@ for recording in recordings:
             .download(storage_path)
         )
 
-        extension = storage_path.rsplit(".", 1)[-1]
+        extension = storage_path.rsplit(".", 1)[-1].lower()
 
         mime_types = {
             "wav": "audio/wav",
@@ -217,26 +190,21 @@ for recording in recordings:
             "mp3": "audio/mpeg"
         }
 
-        audio_format = mime_types.get(
-            extension,
-            "audio/wav"
-        )
-
         st.audio(
             audio_bytes,
-            format=audio_format
+            format=mime_types.get(extension, "audio/wav")
         )
 
     except Exception:
-        st.warning(
-            "This recording could not be loaded."
-        )
+        st.warning("This recording could not be loaded.")
 
 # -----------------------------------
-# Assessment Scoring
+# Load Saved Assessment
 # -----------------------------------
 
-# Load previously saved assessment
+st.divider()
+st.header("Assessment Scoring")
+
 try:
     saved_result = (
         supabase.table("instructor_assessments")
@@ -258,66 +226,102 @@ except Exception:
 
 if saved_assessment:
     st.success("Previously saved assessment loaded.")
+
     st.metric(
         "Saved Total Score",
         f"{saved_assessment['total_score']}/100"
     )
+
+    result_labels = {
+        "pass_candidate": "Pass Candidate",
+        "further_review": "Further Review",
+        "below_threshold": "Below Threshold"
+    }
+
+    saved_status = saved_assessment["provisional_result"]
+
     st.write(
         "**Saved Result:**",
-        saved_assessment["provisional_result"]
+        result_labels.get(saved_status, saved_status)
     )
+
+    st.write(
+        "**Assessed At:**",
+        saved_assessment["assessed_at"]
+    )
+
 else:
     st.info("This applicant has not been assessed yet.")
 
-st.divider()
-st.header("Assessment Scoring")
-
 st.caption(
-    "Scores are calculated here but "
-    "are not permanently stored yet."
+    "Scores are saved to Supabase when you "
+    "click Calculate & Save Assessment."
 )
 
+# -----------------------------------
+# Assessment Scoring Form
+# -----------------------------------
+
 with st.form(
-    f"assessment_scoring_{application_id}"
+    key=f"assessment_scoring_{application_id}"
 ):
     pronunciation_score = st.slider(
         "Pronunciation & Intelligibility (30)",
         min_value=0,
         max_value=30,
-        value=0
+        value=saved_assessment.get(
+            "pronunciation_score", 0
+        ),
+        key=f"pronunciation_{application_id}"
     )
 
     english_score = st.slider(
         "English Proficiency (25)",
         min_value=0,
         max_value=25,
-        value=0
+        value=saved_assessment.get(
+            "english_score", 0
+        ),
+        key=f"english_{application_id}"
     )
 
     teaching_score = st.slider(
         "Teaching Ability (25)",
         min_value=0,
         max_value=25,
-        value=0
+        value=saved_assessment.get(
+            "teaching_score", 0
+        ),
+        key=f"teaching_{application_id}"
     )
 
     communication_score = st.slider(
         "Communication (10)",
         min_value=0,
         max_value=10,
-        value=0
+        value=saved_assessment.get(
+            "communication_score", 0
+        ),
+        key=f"communication_{application_id}"
     )
 
     reliability_score = st.slider(
         "Professionalism & Reliability (10)",
         min_value=0,
         max_value=10,
-        value=0
+        value=saved_assessment.get(
+            "reliability_score", 0
+        ),
+        key=f"reliability_{application_id}"
     )
 
     calculate = st.form_submit_button(
-        "Calculate Score"
+        "Calculate & Save Assessment"
     )
+
+# -----------------------------------
+# Calculate and Save
+# -----------------------------------
 
 if calculate:
     total_score = (
@@ -328,35 +332,6 @@ if calculate:
         + reliability_score
     )
 
-    st.metric(
-        "Total Assessment Score",
-        f"{total_score}/100"
-    )
-
-    st.progress(total_score / 100)
-
-    if total_score >= 85:
-        st.success(
-            "Provisional result: Pass candidate"
-        )
-    elif total_score >= 70:
-        st.warning(
-            "Provisional result: Further review"
-        )
-    else:
-        st.error(
-            "Provisional result: Below current threshold"
-        )
-
-    st.info(
-        "Final hiring decisions require human review."
-    )
-
-# -----------------------------------
-# Save Assessment to Supabase
-# -----------------------------------
-
-if calculate:
     if total_score >= 85:
         provisional_result = "pass_candidate"
     elif total_score >= 70:
@@ -375,14 +350,32 @@ if calculate:
     }
 
     try:
-        supabase.table("instructor_assessments").upsert(
-            assessment_data,
-            on_conflict="application_id"
-        ).execute()
-
-        st.success(
-            "Assessment saved successfully!"
+        (
+            supabase.table("instructor_assessments")
+            .upsert(
+                assessment_data,
+                on_conflict="application_id"
+            )
+            .execute()
         )
+
+        st.success("Assessment saved successfully!")
+
+        st.metric(
+            "Total Assessment Score",
+            f"{total_score}/100"
+        )
+
+        st.progress(total_score / 100)
+
+        if total_score >= 85:
+            st.success("Provisional result: Pass candidate")
+        elif total_score >= 70:
+            st.warning("Provisional result: Further review")
+        else:
+            st.error("Provisional result: Below current threshold")
+
+        st.info("Final hiring decisions require human review.")
 
     except Exception:
         st.error(
