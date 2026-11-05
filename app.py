@@ -480,13 +480,72 @@ if not ready_to_submit:
         "before submitting your application."
     )
 
+
+if "application_submitted" not in st.session_state:
+    st.session_state.application_submitted = False
+
+if "application_id" not in st.session_state:
+    st.session_state.application_id = None
+
+if st.session_state.application_submitted:
+    st.success("Application submitted successfully!")
+    st.write(
+        "Application ID:",
+        st.session_state.application_id
+    )
+
 if st.button(
     "Submit Application",
     type="primary",
-    disabled=not ready_to_submit
-):
-    st.info(
-        "All required sections are complete. "
-        "Database submission will be enabled "
-        "in the next development step."
+    disabled=(
+        not ready_to_submit
+        or st.session_state.application_submitted
     )
+):
+    with st.spinner("Submitting your application..."):
+        application_id = None
+
+        try:
+            # Save applicant information and test results.
+            application_id = save_applicant(
+                applicant_name,
+                applicant_email,
+                st.session_state.english_answers,
+                st.session_state.english_score
+            )
+
+            # Save all seven recordings.
+            recording_tasks = [
+                ("pronunciation", 1, "pronunciation_0"),
+                ("pronunciation", 2, "pronunciation_1"),
+                ("pronunciation", 3, "pronunciation_2"),
+                ("speaking", 1, "speaking_0"),
+                ("speaking", 2, "speaking_1"),
+                ("speaking", 3, "speaking_2"),
+                ("teaching_demo", 1, "teaching_demo")
+            ]
+
+            for recording_type, task_number, key in recording_tasks:
+                save_recording(
+                    application_id,
+                    recording_type,
+                    task_number,
+                    st.session_state[key]
+                )
+
+            st.session_state.application_submitted = True
+            st.session_state.application_id = application_id
+
+            st.success(
+                "Your application has been submitted!"
+            )
+
+            st.write("Application ID:", application_id)
+
+        except Exception:
+            st.error(
+                "Submission could not be completed. "
+                "Please contact the administrator "
+                "before trying again."
+            )
+
