@@ -382,3 +382,81 @@ if calculate:
             "Assessment could not be saved. "
             "Please try again."
         )
+
+# -----------------------------------
+# Final Hiring Decision
+# -----------------------------------
+
+st.divider()
+st.header("Final Hiring Decision")
+
+decision_options = {
+    "Pending / Further Review": "pending",
+    "Pass": "passed",
+    "Reject": "rejected"
+}
+
+saved_decision = saved_assessment.get(
+    "final_decision", "pending"
+) or "pending"
+
+decision_labels = list(decision_options.keys())
+decision_values = list(decision_options.values())
+
+default_index = (
+    decision_values.index(saved_decision)
+    if saved_decision in decision_values
+    else 0
+)
+
+with st.form(
+    key=f"final_decision_{application_id}"
+):
+    selected_decision = st.selectbox(
+        "Final Decision",
+        options=decision_labels,
+        index=default_index
+    )
+
+    decision_notes = st.text_area(
+        "Decision Notes",
+        value=saved_assessment.get("decision_notes") or "",
+        placeholder="Enter the reason for your decision."
+    )
+
+    save_decision = st.form_submit_button(
+        "Save Final Decision"
+    )
+
+if save_decision:
+    if not saved_assessment:
+        st.error(
+            "Please save the assessment scores "
+            "before making a final decision."
+        )
+    else:
+        from datetime import datetime, timezone
+
+        decision_value = decision_options[selected_decision]
+
+        try:
+            (
+                supabase.table("instructor_assessments")
+                .update({
+                    "final_decision": decision_value,
+                    "decision_notes": decision_notes.strip(),
+                    "decision_at": datetime.now(
+                        timezone.utc
+                    ).isoformat()
+                })
+                .eq("application_id", application_id)
+                .execute()
+            )
+
+            st.success("Final hiring decision saved!")
+            st.rerun()
+
+        except Exception:
+            st.error(
+                "Could not save the final decision."
+            )
