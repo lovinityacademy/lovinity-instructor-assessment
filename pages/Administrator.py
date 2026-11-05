@@ -460,3 +460,76 @@ if save_decision:
             st.error(
                 "Could not save the final decision."
             )
+
+# -----------------------------------
+# Applicant Assessment Overview
+# -----------------------------------
+
+st.divider()
+st.header("Applicant Assessment Overview")
+
+try:
+    overview_result = (
+        supabase.table("instructor_assessments")
+        .select(
+            "application_id, total_score, "
+            "provisional_result, final_decision"
+        )
+        .execute()
+    )
+
+    assessments = overview_result.data or []
+
+    assessment_lookup = {
+        item["application_id"]: item
+        for item in assessments
+    }
+
+    decision_labels = {
+        "pending": "Pending",
+        "passed": "Pass",
+        "rejected": "Reject"
+    }
+
+    overview_rows = []
+
+    for applicant in applications:
+        assessment = assessment_lookup.get(
+            applicant["id"], {}
+        )
+
+        final_decision = assessment.get(
+            "final_decision"
+        ) or "pending"
+
+        total_score = assessment.get("total_score")
+
+        overview_rows.append({
+            "Applicant": applicant["applicant_name"],
+            "Email": applicant["applicant_email"],
+            "Assessment Score": (
+                f"{total_score}/100"
+                if total_score is not None
+                else "Not Assessed"
+            ),
+            "Final Decision": (
+                decision_labels.get(
+                    final_decision,
+                    "Pending"
+                )
+                if assessment
+                else "Not Assessed"
+            ),
+            "Application ID": applicant["id"]
+        })
+
+    st.dataframe(
+        overview_rows,
+        use_container_width=True,
+        hide_index=True
+    )
+
+except Exception:
+    st.error(
+        "Could not load the applicant overview."
+    )
