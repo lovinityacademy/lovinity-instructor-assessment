@@ -11,6 +11,20 @@ st.set_page_config(
     layout="centered"
 )
 
+# -----------------------------------
+# Session State
+# -----------------------------------
+
+if "english_score" not in st.session_state:
+    st.session_state.english_score = None
+
+if "english_answers" not in st.session_state:
+    st.session_state.english_answers = None
+
+# -----------------------------------
+# Header
+# -----------------------------------
+
 st.title("LOVINITY ENGLISH")
 st.subheader("Instructor Assessment System")
 
@@ -28,8 +42,8 @@ st.write(
 
 st.warning(
     "Development version: Answers and recordings "
-    "are not submitted to the administrator or "
-    "permanently saved."
+    "are not yet permanently saved or submitted "
+    "to the administrator."
 )
 
 # -----------------------------------
@@ -122,6 +136,7 @@ questions = [
 ]
 
 with st.form("english_test"):
+
     st.write(
         "Choose the correct answer for each question."
     )
@@ -129,11 +144,13 @@ with st.form("english_test"):
     answers = []
 
     for i, q in enumerate(questions):
+
         answer = st.radio(
             f"Q{i + 1}. {q['question']}",
             ["Select an answer"] + q["options"],
             key=f"english_q{i}"
         )
+
         answers.append(answer)
 
     submitted = st.form_submit_button(
@@ -141,29 +158,54 @@ with st.form("english_test"):
     )
 
 if submitted:
+
     if "Select an answer" in answers:
-        st.warning("Please answer all questions.")
+
+        st.session_state.english_score = None
+        st.session_state.english_answers = None
+
+        st.warning(
+            "Please answer all questions."
+        )
+
     else:
+
         score = sum(
             answers[i] == q["answer"]
             for i, q in enumerate(questions)
         )
 
+        st.session_state.english_score = score
+        st.session_state.english_answers = answers.copy()
+
         st.success(
             "English proficiency test completed!"
         )
 
-        st.metric(
-            "English Test Score",
-            f"{score}/5"
-        )
+if st.session_state.english_score is not None:
 
-        st.progress(score / len(questions))
+    score = st.session_state.english_score
 
-        st.caption(
-            "This is a development test only. "
-            "It is not a validated English "
-            "proficiency assessment."
+    st.metric(
+        "English Test Score",
+        f"{score}/5"
+    )
+
+    st.progress(score / len(questions))
+
+    st.caption(
+        "This is a development test only. "
+        "It is not a validated English "
+        "proficiency assessment."
+    )
+
+    # If answers are changed, the previous
+    # score is not treated as the final result.
+    if answers != st.session_state.english_answers:
+        st.warning(
+            "Your answers have changed. "
+            "Please click Submit Answers again "
+            "to update your score."
         )
 
 # -----------------------------------
@@ -200,7 +242,9 @@ sentences = [
 ]
 
 for i, sentence in enumerate(sentences):
+
     st.subheader(f"Reading Task {i + 1}")
+
     st.info(sentence)
 
     audio = st.audio_input(
@@ -209,7 +253,9 @@ for i, sentence in enumerate(sentences):
     )
 
     if audio is not None:
+
         st.success("Recording completed!")
+
         st.audio(audio)
 
         st.caption(
@@ -259,6 +305,7 @@ speaking_tasks = [
 ]
 
 for i, task in enumerate(speaking_tasks):
+
     st.subheader(
         f"Speaking Task {i + 1}: {task['title']}"
     )
@@ -275,6 +322,7 @@ for i, task in enumerate(speaking_tasks):
     )
 
     if recording is not None:
+
         st.success(
             "Answer recorded successfully!"
         )
@@ -326,6 +374,7 @@ demo_recording = st.audio_input(
 )
 
 if demo_recording is not None:
+
     st.success(
         "Teaching demonstration recorded!"
     )
@@ -347,12 +396,24 @@ st.divider()
 
 st.subheader("End of Assessment")
 
+if st.session_state.english_score is not None:
+
+    st.success(
+        "English proficiency test: Completed"
+    )
+
+else:
+
+    st.warning(
+        "English proficiency test: Not completed"
+    )
+
 st.info(
     "You have reached the end of the "
     "LOVINITY ENGLISH assessment prototype. "
     "There is currently no final submission "
     "function. Your recordings and answers "
-    "are not sent to the administrator."
+    "are not yet saved to Supabase."
 )
 
 st.caption(
