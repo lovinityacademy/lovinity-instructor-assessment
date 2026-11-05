@@ -33,6 +33,35 @@ st.warning(
 )
 
 # -----------------------------------
+# Applicant Information
+# -----------------------------------
+
+st.divider()
+st.header("Applicant Information")
+
+st.write(
+    "Please enter your information "
+    "before starting the assessment."
+)
+
+applicant_name = st.text_input(
+    "Full Name",
+    placeholder="Enter your full name",
+    key="applicant_name"
+)
+
+applicant_email = st.text_input(
+    "Email Address",
+    placeholder="example@email.com",
+    key="applicant_email"
+)
+
+st.caption(
+    "Your information will be used "
+    "for instructor recruitment assessment."
+)
+
+# -----------------------------------
 # English Proficiency Test
 # -----------------------------------
 
