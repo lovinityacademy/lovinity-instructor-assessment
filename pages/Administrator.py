@@ -92,5 +92,23 @@ for app in applications:
         "Application ID": app["id"],
     })
 
-filtered_rows = [
-    row for row in rows
+
+filtered_rows = []
+
+for row in rows:
+    name_match = search_query in row["Applicant"].lower()
+    email_match = search_query in row["Email"].lower()
+
+    search_match = (
+        not search_query
+        or name_match
+        or email_match
+    )
+
+    decision_match = (
+        decision_filter == "All Applicants"
+        or row["Final Decision"] == decision_filter
+    )
+
+    if search_match and decision_match:
+        filtered_rows.append(row)
