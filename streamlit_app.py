@@ -14,8 +14,14 @@ administrator = st.Page(
     icon="🔐"
 )
 
+connection_test = st.Page(
+    "supabase_test.py",
+    title="Connection Test",
+    icon="🔧"
+)
+
 navigation = st.navigation(
-    [applicant, administrator]
+    [applicant, administrator, connection_test]
 )
 
 navigation.run()
