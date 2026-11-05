@@ -229,3 +229,69 @@ if demo_recording is not None:
         "It has not been submitted or saved "
         "for administrator review."
     )
+
+# -----------------------------------
+# Assessment Scoring - Prototype
+# -----------------------------------
+
+st.divider()
+st.header("Assessment Scoring")
+st.caption("Development prototype - authorized test use only")
+
+st.warning(
+    "This scoring form is a prototype. "
+    "It does not store results or make final hiring decisions."
+)
+
+with st.form("assessment_scoring"):
+    pronunciation_score = st.slider(
+        "Pronunciation & Intelligibility (30)",
+        min_value=0, max_value=30, value=0
+    )
+
+    english_score = st.slider(
+        "English Proficiency (25)",
+        min_value=0, max_value=25, value=0
+    )
+
+    teaching_score = st.slider(
+        "Teaching Ability (25)",
+        min_value=0, max_value=25, value=0
+    )
+
+    communication_score = st.slider(
+        "Communication (10)",
+        min_value=0, max_value=10, value=0
+    )
+
+    reliability_score = st.slider(
+        "Professionalism & Reliability (10)",
+        min_value=0, max_value=10, value=0
+    )
+
+    calculate = st.form_submit_button("Calculate Score")
+
+if calculate:
+    total_score = (
+        pronunciation_score
+        + english_score
+        + teaching_score
+        + communication_score
+        + reliability_score
+    )
+
+    st.metric("Total Assessment Score", f"{total_score}/100")
+    st.progress(total_score / 100)
+
+    if total_score >= 85:
+        st.success("Provisional result: Pass candidate")
+    elif total_score >= 70:
+        st.warning("Provisional result: Further review")
+    else:
+        st.error("Provisional result: Below current threshold")
+
+    st.info(
+        "Final hiring decisions require a human review "
+        "of English proficiency, teaching performance, "
+        "and relevant interview evidence."
+    )
