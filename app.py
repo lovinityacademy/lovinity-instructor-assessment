@@ -1,14 +1,29 @@
+
 import streamlit as st
 
 # -----------------------------------
-# Page Settings
+# Page Navigation
 # -----------------------------------
 
-st.set_page_config(
-    page_title="LOVINITY Instructor Assessment",
-    page_icon="🎓",
-    layout="centered"
+applicant_page = st.Page(
+    "pages/1_Applicant.py",
+    title="Applicant Assessment",
+    icon="📝",
+    default=True
 )
+
+administrator_page = st.Page(
+    "pages/2_Administrator.py",
+    title="Administrator",
+    icon="🔐"
+)
+
+navigation = st.navigation(
+    [applicant_page, administrator_page]
+)
+
+navigation.run()
+
 st.title("LOVINITY ENGLISH")
 st.subheader("Instructor Assessment System")
 
