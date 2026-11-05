@@ -236,6 +236,39 @@ for recording in recordings:
 # Assessment Scoring
 # -----------------------------------
 
+# Load previously saved assessment
+try:
+    saved_result = (
+        supabase.table("instructor_assessments")
+        .select("*")
+        .eq("application_id", application_id)
+        .limit(1)
+        .execute()
+    )
+
+    saved_assessment = (
+        saved_result.data[0]
+        if saved_result.data
+        else {}
+    )
+
+except Exception:
+    st.error("Could not load saved assessment.")
+    st.stop()
+
+if saved_assessment:
+    st.success("Previously saved assessment loaded.")
+    st.metric(
+        "Saved Total Score",
+        f"{saved_assessment['total_score']}/100"
+    )
+    st.write(
+        "**Saved Result:**",
+        saved_assessment["provisional_result"]
+    )
+else:
+    st.info("This applicant has not been assessed yet.")
+
 st.divider()
 st.header("Assessment Scoring")
 
