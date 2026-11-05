@@ -318,3 +318,41 @@ if calculate:
     st.info(
         "Final hiring decisions require human review."
     )
+
+# -----------------------------------
+# Save Assessment to Supabase
+# -----------------------------------
+
+if calculate:
+    if total_score >= 85:
+        provisional_result = "pass_candidate"
+    elif total_score >= 70:
+        provisional_result = "further_review"
+    else:
+        provisional_result = "below_threshold"
+
+    assessment_data = {
+        "application_id": application_id,
+        "pronunciation_score": pronunciation_score,
+        "english_score": english_score,
+        "teaching_score": teaching_score,
+        "communication_score": communication_score,
+        "reliability_score": reliability_score,
+        "provisional_result": provisional_result
+    }
+
+    try:
+        supabase.table("instructor_assessments").upsert(
+            assessment_data,
+            on_conflict="application_id"
+        ).execute()
+
+        st.success(
+            "Assessment saved successfully!"
+        )
+
+    except Exception:
+        st.error(
+            "Assessment could not be saved. "
+            "Please try again."
+        )
