@@ -2,27 +2,14 @@
 import streamlit as st
 
 # -----------------------------------
-# Page Navigation
+# Page Settings
 # -----------------------------------
 
-applicant_page = st.Page(
-    "pages/1_Applicant.py",
-    title="Applicant Assessment",
-    icon="📝",
-    default=True
+st.set_page_config(
+    page_title="LOVINITY Instructor Assessment",
+    page_icon="🎓",
+    layout="centered"
 )
-
-administrator_page = st.Page(
-    "pages/2_Administrator.py",
-    title="Administrator",
-    icon="🔐"
-)
-
-navigation = st.navigation(
-    [applicant_page, administrator_page]
-)
-
-navigation.run()
 
 st.title("LOVINITY ENGLISH")
 st.subheader("Instructor Assessment System")
@@ -126,9 +113,7 @@ with st.form("english_test"):
 
 if submitted:
     if "Select an answer" in answers:
-        st.warning(
-            "Please answer all questions."
-        )
+        st.warning("Please answer all questions.")
     else:
         score = sum(
             answers[i] == q["answer"]
@@ -144,9 +129,7 @@ if submitted:
             f"{score}/5"
         )
 
-        st.progress(
-            score / len(questions)
-        )
+        st.progress(score / len(questions))
 
         st.caption(
             "This is a development test only. "
@@ -188,10 +171,7 @@ sentences = [
 ]
 
 for i, sentence in enumerate(sentences):
-    st.subheader(
-        f"Reading Task {i + 1}"
-    )
-
+    st.subheader(f"Reading Task {i + 1}")
     st.info(sentence)
 
     audio = st.audio_input(
@@ -200,10 +180,7 @@ for i, sentence in enumerate(sentences):
     )
 
     if audio is not None:
-        st.success(
-            "Recording completed!"
-        )
-
+        st.success("Recording completed!")
         st.audio(audio)
 
         st.caption(
@@ -257,9 +234,7 @@ for i, task in enumerate(speaking_tasks):
         f"Speaking Task {i + 1}: {task['title']}"
     )
 
-    st.info(
-        task["question"]
-    )
+    st.info(task["question"])
 
     st.write(
         "Recommended speaking time: 1-2 minutes."
@@ -296,9 +271,7 @@ st.write(
     "a beginner-level adult English learner."
 )
 
-st.subheader(
-    "Scenario: Ordering Coffee"
-)
+st.subheader("Scenario: Ordering Coffee")
 
 st.info(
     "You are teaching an adult beginner "
@@ -316,9 +289,7 @@ st.markdown(
     """
 )
 
-st.write(
-    "Suggested duration: 3-5 minutes."
-)
+st.write("Suggested duration: 3-5 minutes.")
 
 demo_recording = st.audio_input(
     "Record your teaching demonstration",
@@ -330,9 +301,7 @@ if demo_recording is not None:
         "Teaching demonstration recorded!"
     )
 
-    st.audio(
-        demo_recording
-    )
+    st.audio(demo_recording)
 
     st.caption(
         "Recording is available for playback "
@@ -347,9 +316,7 @@ if demo_recording is not None:
 
 st.divider()
 
-st.subheader(
-    "End of Assessment"
-)
+st.subheader("End of Assessment")
 
 st.info(
     "You have reached the end of the "
