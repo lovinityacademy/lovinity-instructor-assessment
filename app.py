@@ -181,3 +181,51 @@ for i, task in enumerate(speaking_tasks):
             "playback in this session. "
             "It has not been submitted to an examiner."
         )
+
+# -----------------------------------
+# Teaching Demonstration
+# -----------------------------------
+
+st.divider()
+
+st.header("Teaching Demonstration")
+
+st.write(
+    "Show us how you would teach "
+    "a beginner-level adult English learner."
+)
+
+st.subheader("Scenario: Ordering Coffee")
+
+st.info(
+    "You are teaching an adult beginner "
+    "who wants to order coffee at a cafe."
+)
+
+st.markdown(
+    """
+    **Your mini lesson should include:**
+
+    1. A simple explanation
+    2. Two useful English expressions
+    3. One example conversation
+    4. An encouraging closing statement
+    """
+)
+
+st.write("Suggested duration: 3-5 minutes.")
+
+demo_recording = st.audio_input(
+    "Record your teaching demonstration",
+    key="teaching_demo"
+)
+
+if demo_recording is not None:
+    st.success("Teaching demonstration recorded!")
+    st.audio(demo_recording)
+    st.caption(
+        "Recording is available for playback "
+        "during this session. "
+        "It has not been submitted or saved "
+        "for administrator review."
+    )
