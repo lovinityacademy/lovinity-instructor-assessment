@@ -11,20 +11,26 @@ def get_supabase():
     )
 
 
-def save_applicant(name, email):
+def save_applicant(name, email, answers, score):
     supabase = get_supabase()
+
+    application_data = {
+        "applicant_name": name.strip(),
+        "applicant_email": email.strip(),
+        "english_answers": answers,
+        "english_score": score,
+        "status": "submitted"
+    }
 
     result = (
         supabase.table("instructor_applications")
-        .insert({
-            "applicant_name": name,
-            "applicant_email": email,
-            "status": "submitted"
-        })
+        .insert(application_data)
         .execute()
     )
 
     if not result.data:
-        raise RuntimeError("Applicant data was not saved.")
+        raise RuntimeError(
+            "Applicant data was not saved."
+        )
 
     return result.data[0]["id"]
