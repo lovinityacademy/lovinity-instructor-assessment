@@ -10,6 +10,24 @@ st.set_page_config(
     layout="centered"
 )
 
+# -----------------------------------
+# Page Navigation
+# -----------------------------------
+
+st.sidebar.title("LOVINITY ENGLISH")
+
+st.sidebar.page_link(
+    "app.py",
+    label="Applicant Assessment",
+    icon="📝"
+)
+
+st.sidebar.page_link(
+    "pages/2_Administrator.py",
+    label="Administrator",
+    icon="🔐"
+)
+
 st.title("LOVINITY ENGLISH")
 st.subheader("Instructor Assessment System")
 
