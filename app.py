@@ -1,5 +1,8 @@
-
 import streamlit as st
+
+# -----------------------------------
+# Page Settings
+# -----------------------------------
 
 st.set_page_config(
     page_title="LOVINITY Instructor Assessment",
@@ -12,20 +15,58 @@ st.subheader("Instructor Assessment System")
 
 st.info("講師採用審査システム｜開発テスト版")
 
+st.write(
+    "Welcome to the LOVINITY ENGLISH "
+    "Instructor Assessment."
+)
+
+st.write(
+    "Please complete all assessment sections "
+    "following the instructions."
+)
+
+st.warning(
+    "Development version: Answers and recordings "
+    "are not submitted to the administrator or "
+    "permanently saved."
+)
+
+# -----------------------------------
+# English Proficiency Test
+# -----------------------------------
+
+st.divider()
+st.header("1. English Proficiency Test")
+
 questions = [
     {
         "question": "She ___ English every day.",
-        "options": ["study", "studies", "studying", "studied"],
+        "options": [
+            "study",
+            "studies",
+            "studying",
+            "studied"
+        ],
         "answer": "studies"
     },
     {
         "question": "If I ___ more time, I would travel.",
-        "options": ["have", "had", "will have", "having"],
+        "options": [
+            "have",
+            "had",
+            "will have",
+            "having"
+        ],
         "answer": "had"
     },
     {
         "question": "He has lived in Japan ___ 2020.",
-        "options": ["for", "since", "during", "from"],
+        "options": [
+            "for",
+            "since",
+            "during",
+            "from"
+        ],
         "answer": "since"
     },
     {
@@ -51,37 +92,52 @@ questions = [
 ]
 
 with st.form("english_test"):
-    st.header("English Proficiency Test")
-    st.write("各問題について、正しい答えを選んでください。")
+    st.write(
+        "Choose the correct answer for each question."
+    )
 
     answers = []
 
     for i, q in enumerate(questions):
         answer = st.radio(
             f"Q{i + 1}. {q['question']}",
-            ["選択してください"] + q["options"],
-            key=f"q{i}",
+            ["Select an answer"] + q["options"],
+            key=f"english_q{i}"
         )
         answers.append(answer)
 
-    submitted = st.form_submit_button("Submit Answers")
+    submitted = st.form_submit_button(
+        "Submit Answers"
+    )
 
 if submitted:
-    if "選択してください" in answers:
-        st.warning("すべての問題に回答してください。")
+    if "Select an answer" in answers:
+        st.warning(
+            "Please answer all questions."
+        )
     else:
         score = sum(
             answers[i] == q["answer"]
             for i, q in enumerate(questions)
         )
 
-        st.success("テストが完了しました！")
-        st.metric("English Test Score", f"{score}/5")
-        st.progress(score / len(questions))
+        st.success(
+            "English proficiency test completed!"
+        )
+
+        st.metric(
+            "English Test Score",
+            f"{score}/5"
+        )
+
+        st.progress(
+            score / len(questions)
+        )
 
         st.caption(
-            "このテストは開発確認用です。"
-            "正式な英語力認定や採用合否には使用できません。"
+            "This is a development test only. "
+            "It is not a validated English "
+            "proficiency assessment."
         )
 
 # -----------------------------------
@@ -89,22 +145,39 @@ if submitted:
 # -----------------------------------
 
 st.divider()
-
-st.header("Pronunciation Assessment")
+st.header("2. Pronunciation Assessment")
 
 st.write(
-    "Read the following sentence aloud "
-    "clearly and naturally."
+    "Read each sentence aloud clearly "
+    "and naturally."
+)
+
+st.caption(
+    "Different English accents are welcome. "
+    "The focus is on clear communication."
 )
 
 sentences = [
-    "Learning English opens doors to new opportunities around the world.",
-    "Effective communication is essential for building trust and understanding.",
-    "As an English teacher, I always encourage students to speak with confidence."
+    (
+        "Learning English opens doors to "
+        "new opportunities around the world."
+    ),
+    (
+        "Effective communication is essential "
+        "for building trust and understanding."
+    ),
+    (
+        "As an English teacher, I always "
+        "encourage students to speak "
+        "with confidence."
+    )
 ]
 
 for i, sentence in enumerate(sentences):
-    st.subheader(f"Reading Task {i + 1}")
+    st.subheader(
+        f"Reading Task {i + 1}"
+    )
+
     st.info(sentence)
 
     audio = st.audio_input(
@@ -113,11 +186,17 @@ for i, sentence in enumerate(sentences):
     )
 
     if audio is not None:
-        st.success("Recording completed!")
+        st.success(
+            "Recording completed!"
+        )
+
         st.audio(audio)
+
         st.caption(
-            "Recording is available for playback. "
-            "AI pronunciation scoring is not enabled yet."
+            "Recording is available for playback "
+            "in this session. "
+            "AI pronunciation scoring is "
+            "not enabled yet."
         )
 
 # -----------------------------------
@@ -125,8 +204,7 @@ for i, sentence in enumerate(sentences):
 # -----------------------------------
 
 st.divider()
-
-st.header("Speaking Assessment")
+st.header("3. Speaking Assessment")
 
 st.write(
     "Answer each question in English. "
@@ -144,16 +222,17 @@ speaking_tasks = [
     {
         "title": "Teaching Explanation",
         "question": (
-            "How would you explain the difference between "
-            "'I have been to London' and "
-            "'I went to London' to a beginner?"
+            "How would you explain the difference "
+            "between 'I have been to London' "
+            "and 'I went to London' "
+            "to a beginner?"
         )
     },
     {
         "title": "Classroom Situation",
         "question": (
-            "A student is afraid of making mistakes "
-            "when speaking English. "
+            "A student is afraid of making "
+            "mistakes when speaking English. "
             "How would you encourage them?"
         )
     }
@@ -164,9 +243,13 @@ for i, task in enumerate(speaking_tasks):
         f"Speaking Task {i + 1}: {task['title']}"
     )
 
-    st.info(task["question"])
+    st.info(
+        task["question"]
+    )
 
-    st.write("Recommended speaking time: 1-2 minutes.")
+    st.write(
+        "Recommended speaking time: 1-2 minutes."
+    )
 
     recording = st.audio_input(
         f"Record your answer - Task {i + 1}",
@@ -174,12 +257,17 @@ for i, task in enumerate(speaking_tasks):
     )
 
     if recording is not None:
-        st.success("Answer recorded successfully!")
+        st.success(
+            "Answer recorded successfully!"
+        )
+
         st.audio(recording)
+
         st.caption(
-            "Your answer has been recorded for "
-            "playback in this session. "
-            "It has not been submitted to an examiner."
+            "Your answer is available for playback "
+            "during this session. "
+            "It has not been submitted "
+            "to an examiner."
         )
 
 # -----------------------------------
@@ -187,15 +275,16 @@ for i, task in enumerate(speaking_tasks):
 # -----------------------------------
 
 st.divider()
-
-st.header("Teaching Demonstration")
+st.header("4. Teaching Demonstration")
 
 st.write(
     "Show us how you would teach "
     "a beginner-level adult English learner."
 )
 
-st.subheader("Scenario: Ordering Coffee")
+st.subheader(
+    "Scenario: Ordering Coffee"
+)
 
 st.info(
     "You are teaching an adult beginner "
@@ -213,7 +302,9 @@ st.markdown(
     """
 )
 
-st.write("Suggested duration: 3-5 minutes.")
+st.write(
+    "Suggested duration: 3-5 minutes."
+)
 
 demo_recording = st.audio_input(
     "Record your teaching demonstration",
@@ -221,8 +312,14 @@ demo_recording = st.audio_input(
 )
 
 if demo_recording is not None:
-    st.success("Teaching demonstration recorded!")
-    st.audio(demo_recording)
+    st.success(
+        "Teaching demonstration recorded!"
+    )
+
+    st.audio(
+        demo_recording
+    )
+
     st.caption(
         "Recording is available for playback "
         "during this session. "
@@ -231,67 +328,23 @@ if demo_recording is not None:
     )
 
 # -----------------------------------
-# Assessment Scoring - Prototype
+# End of Assessment
 # -----------------------------------
 
 st.divider()
-st.header("Assessment Scoring")
-st.caption("Development prototype - authorized test use only")
 
-st.warning(
-    "This scoring form is a prototype. "
-    "It does not store results or make final hiring decisions."
+st.subheader(
+    "End of Assessment"
 )
 
-with st.form("assessment_scoring"):
-    pronunciation_score = st.slider(
-        "Pronunciation & Intelligibility (30)",
-        min_value=0, max_value=30, value=0
-    )
+st.info(
+    "You have reached the end of the "
+    "LOVINITY ENGLISH assessment prototype. "
+    "There is currently no final submission "
+    "function. Your recordings and answers "
+    "are not sent to the administrator."
+)
 
-    english_score = st.slider(
-        "English Proficiency (25)",
-        min_value=0, max_value=25, value=0
-    )
-
-    teaching_score = st.slider(
-        "Teaching Ability (25)",
-        min_value=0, max_value=25, value=0
-    )
-
-    communication_score = st.slider(
-        "Communication (10)",
-        min_value=0, max_value=10, value=0
-    )
-
-    reliability_score = st.slider(
-        "Professionalism & Reliability (10)",
-        min_value=0, max_value=10, value=0
-    )
-
-    calculate = st.form_submit_button("Calculate Score")
-
-if calculate:
-    total_score = (
-        pronunciation_score
-        + english_score
-        + teaching_score
-        + communication_score
-        + reliability_score
-    )
-
-    st.metric("Total Assessment Score", f"{total_score}/100")
-    st.progress(total_score / 100)
-
-    if total_score >= 85:
-        st.success("Provisional result: Pass candidate")
-    elif total_score >= 70:
-        st.warning("Provisional result: Further review")
-    else:
-        st.error("Provisional result: Below current threshold")
-
-    st.info(
-        "Final hiring decisions require a human review "
-        "of English proficiency, teaching performance, "
-        "and relevant interview evidence."
-    )
+st.caption(
+    "LOVINITY ENGLISH | Instructor Assessment System"
+)
