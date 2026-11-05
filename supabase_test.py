@@ -19,8 +19,8 @@ try:
 
     st.success("Supabase connection successful!")
 
-except Exception:
-    st.error(
-        "Supabase connection failed. "
-        "Please check the app logs and Secrets."
-    )
+
+except Exception as e:
+    st.error("Supabase connection failed.")
+    st.write("Error type:", type(e).__name__)
+    print("Supabase connection test failed:", type(e).__name__)
