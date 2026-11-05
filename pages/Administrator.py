@@ -533,3 +533,57 @@ except Exception:
     st.error(
         "Could not load the applicant overview."
     )
+
+# -----------------------------------
+# Applicant Search and Filters
+# -----------------------------------
+
+st.divider()
+st.header("Applicant Search & Filters")
+
+search_query = st.text_input(
+    "Search Applicant",
+    placeholder="Search by name or email..."
+)
+
+decision_filter = st.selectbox(
+    "Filter by Final Decision",
+    [
+        "All Applicants",
+        "Pass",
+        "Pending",
+        "Reject",
+        "Not Assessed"
+    ]
+)
+
+filtered_rows = overview_rows.copy()
+
+if search_query.strip():
+    query = search_query.strip().lower()
+
+    filtered_rows = [
+        row for row in filtered_rows
+        if query in row["Applicant"].lower()
+        or query in row["Email"].lower()
+    ]
+
+if decision_filter != "All Applicants":
+    filtered_rows = [
+        row for row in filtered_rows
+        if row["Final Decision"] == decision_filter
+    ]
+
+st.metric(
+    "Matching Applicants",
+    len(filtered_rows)
+)
+
+if filtered_rows:
+    st.dataframe(
+        filtered_rows,
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.info("No applicants match your search.")
