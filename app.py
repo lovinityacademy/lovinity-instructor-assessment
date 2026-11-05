@@ -419,3 +419,73 @@ st.info(
 st.caption(
     "LOVINITY ENGLISH | Instructor Assessment System"
 )
+
+# -----------------------------------
+# Final Submission
+# -----------------------------------
+
+st.divider()
+st.header("Final Application Submission")
+
+required_recordings = [
+    f"pronunciation_{i}" for i in range(3)
+] + [
+    f"speaking_{i}" for i in range(3)
+] + [
+    "teaching_demo"
+]
+
+completed_recordings = sum(
+    st.session_state.get(key) is not None
+    for key in required_recordings
+)
+
+st.write(
+    f"Recordings completed: "
+    f"{completed_recordings}/7"
+)
+
+english_completed = (
+    st.session_state.english_score is not None
+    and st.session_state.english_answers is not None
+    and answers == st.session_state.english_answers
+)
+
+name_completed = bool(applicant_name.strip())
+
+email_completed = (
+    bool(applicant_email.strip())
+    and "@" in applicant_email
+    and "." in applicant_email.split("@")[-1]
+)
+
+consent = st.checkbox(
+    "I agree to the processing of my "
+    "application information and recordings "
+    "for instructor recruitment assessment."
+)
+
+ready_to_submit = all([
+    name_completed,
+    email_completed,
+    english_completed,
+    completed_recordings == 7,
+    consent
+])
+
+if not ready_to_submit:
+    st.warning(
+        "Please complete all required sections "
+        "before submitting your application."
+    )
+
+if st.button(
+    "Submit Application",
+    type="primary",
+    disabled=not ready_to_submit
+):
+    st.info(
+        "All required sections are complete. "
+        "Database submission will be enabled "
+        "in the next development step."
+    )
