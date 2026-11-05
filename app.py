@@ -83,3 +83,39 @@ if submitted:
             "このテストは開発確認用です。"
             "正式な英語力認定や採用合否には使用できません。"
         )
+
+# -----------------------------------
+# Pronunciation Assessment
+# -----------------------------------
+
+st.divider()
+
+st.header("Pronunciation Assessment")
+
+st.write(
+    "Read the following sentence aloud "
+    "clearly and naturally."
+)
+
+sentences = [
+    "Learning English opens doors to new opportunities around the world.",
+    "Effective communication is essential for building trust and understanding.",
+    "As an English teacher, I always encourage students to speak with confidence."
+]
+
+for i, sentence in enumerate(sentences):
+    st.subheader(f"Reading Task {i + 1}")
+    st.info(sentence)
+
+    audio = st.audio_input(
+        f"Record your voice - Task {i + 1}",
+        key=f"pronunciation_{i}"
+    )
+
+    if audio is not None:
+        st.success("Recording completed!")
+        st.audio(audio)
+        st.caption(
+            "Recording is available for playback. "
+            "AI pronunciation scoring is not enabled yet."
+        )
