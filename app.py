@@ -29,7 +29,7 @@ if "english_answers" not in st.session_state:
 st.title("LOVINITY ENGLISH")
 st.subheader("Instructor Assessment System")
 
-st.info("講師採用審査システム｜開発テスト版")
+st.info("LOVINITY ENGLISH｜講師採用審査")
 
 st.write(
     "Welcome to the LOVINITY ENGLISH "
@@ -41,10 +41,9 @@ st.write(
     "following the instructions."
 )
 
-st.warning(
-    "Development version: Answers and recordings "
-    "are not yet permanently saved or submitted "
-    "to the administrator."
+st.info(
+    "Your answers and recordings will be submitted for recruitment review "
+    "when you select Submit Application at the end."
 )
 
 # -----------------------------------
@@ -195,9 +194,8 @@ if st.session_state.english_score is not None:
     st.progress(score / len(questions))
 
     st.caption(
-        "This is a development test only. "
-        "It is not a validated English "
-        "proficiency assessment."
+        "This five-question quiz is one part of the internal recruitment assessment, "
+        "not an official language proficiency certification."
     )
 
     # If answers are changed, the previous
@@ -259,12 +257,7 @@ for i, sentence in enumerate(sentences):
 
         st.audio(audio)
 
-        st.caption(
-            "Recording is available for playback "
-            "in this session. "
-            "AI pronunciation scoring is "
-            "not enabled yet."
-        )
+        st.caption("You can play back your recording before final submission.")
 
 # -----------------------------------
 # Speaking Assessment
@@ -330,12 +323,7 @@ for i, task in enumerate(speaking_tasks):
 
         st.audio(recording)
 
-        st.caption(
-            "Your answer is available for playback "
-            "during this session. "
-            "It has not been submitted "
-            "to an examiner."
-        )
+        st.caption("You can play back your recording before final submission.")
 
 # -----------------------------------
 # Teaching Demonstration
@@ -382,12 +370,7 @@ if demo_recording is not None:
 
     st.audio(demo_recording)
 
-    st.caption(
-        "Recording is available for playback "
-        "during this session. "
-        "It has not been submitted or saved "
-        "for administrator review."
-    )
+    st.caption("You can play back your recording before final submission.")
 
 # -----------------------------------
 # End of Assessment
@@ -410,16 +393,11 @@ else:
     )
 
 st.info(
-    "You have reached the end of the "
-    "LOVINITY ENGLISH assessment prototype. "
-    "There is currently no final submission "
-    "function. Your recordings and answers "
-    "are not yet saved to Supabase."
+    "Before submitting, please review your answers and recordings. "
+    "Submission is complete only after a confirmation message and application ID appear below."
 )
 
-st.caption(
-    "LOVINITY ENGLISH | Instructor Assessment System"
-)
+st.caption("LOVINITY ENGLISH | Instructor Assessment System")
 
 # -----------------------------------
 # Final Submission
@@ -544,8 +522,7 @@ if st.button(
 
         except Exception:
             st.error(
-                "Submission could not be completed. "
-                "Please contact the administrator "
-                "before trying again."
+                "Submission could not be confirmed. Some information may already "
+                "have been saved. Please contact the administrator before retrying "
+                "to avoid a duplicate application."
             )
-
