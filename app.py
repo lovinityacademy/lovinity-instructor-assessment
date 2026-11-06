@@ -7,8 +7,7 @@ from recording_database import save_recording
 # -----------------------------------
 
 st.set_page_config(
-    page_title="Lovinity Academy 
-    -ENGLISH CLASS- 英語講師採用審査",
+    page_title="Lovinity Academy -ENGLISH- 英語講師採用審査",
     page_icon="🎓",
     layout="centered"
 )
