@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: instructor-retention-cleanup
+  cancel-in-progress: false
+
 jobs:
   retention:
     runs-on: ubuntu-latest
