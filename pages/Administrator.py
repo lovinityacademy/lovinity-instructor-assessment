@@ -365,7 +365,9 @@ if filtered_rows:
                     on_conflict="application_id"
                 )
                 .execute()
-                st.rerun()
+              )
+
+            st.rerun()
             st.success("Assessment saved successfully!")
             st.metric(
                 "Total Assessment Score",
