@@ -396,7 +396,7 @@ else:
 
 引き続き、どうぞよろしくお願いいたします。
 
-LOVINITY ENGLISH
+Lovinity Academy
 採用担当"""
     else:
         default_subject = "LOVINITY ENGLISH | 講師選考結果のご連絡"
@@ -409,7 +409,7 @@ LOVINITY ENGLISH
 お忙しい中、選考にご協力いただきましたことに心より感謝申し上げます。
 今後のご活躍をお祈り申し上げます。
 
-LOVINITY ENGLISH
+Lovinity Academy
 採用担当"""
 
     st.write("**Recipient:**", recipient_email)
