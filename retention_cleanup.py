@@ -5,6 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 from supabase import create_client
 
+
+BUCKET_NAME = "instructor-recordings"
+
 EXPECTED = {
     ("pronunciation", 1),
     ("pronunciation", 2),
@@ -15,17 +18,23 @@ EXPECTED = {
     ("teaching_demo", 1),
 }
 
+
 def fetch_all(db, table, columns):
     rows = []
     offset = 0
 
     while True:
+        query = db.table(table).select(columns)
+
+        if table == "instructor_applications":
+            query = query.order("id")
+        elif table == "instructor_recordings":
+            query = query.order("application_id").order("id")
+        else:
+            query = query.order("application_id")
+
         batch = (
-            db.table(table)
-            .select(columns)
-            .order("id" if table == "instructor_applications"
-                   else "application_id")
-            .range(offset, offset + 999)
+            query.range(offset, offset + 999)
             .execute()
             .data or []
         )
@@ -47,12 +56,74 @@ def parse_date(value):
             value.replace("Z", "+00:00")
         )
         return date if date.tzinfo else None
+
     except (ValueError, TypeError, AttributeError):
         return None
 
 
+def verify_storage_files(db, application_id, recording_rows):
+    expected_paths = {
+        row["storage_path"]
+        for row in recording_rows
+    }
+
+    if len(expected_paths) != 7:
+        return False
+
+    bucket = db.storage.from_(BUCKET_NAME)
+    actual_paths = set()
+    pending_folders = [application_id]
+    visited_folders = set()
+
+    try:
+        while pending_folders:
+            folder = pending_folders.pop()
+
+            if folder in visited_folders:
+                return False
+
+            visited_folders.add(folder)
+            offset = 0
+
+            while True:
+                batch = bucket.list(
+                    folder,
+                    {
+                        "limit": 100,
+                        "offset": offset,
+                    },
+                )
+
+                for item in batch:
+                    name = item.get("name")
+
+                    if not name or name in (".", ".."):
+                        return False
+
+                    path = f"{folder}/{name}"
+
+                    if item.get("id") is None:
+                        pending_folders.append(path)
+                    else:
+                        actual_paths.add(path)
+
+                if len(batch) < 100:
+                    break
+
+                offset += 100
+
+        return actual_paths == expected_paths
+
+    except Exception as exc:
+        print(
+            f"STORAGE CHECK ERROR {application_id}: "
+            f"{type(exc).__name__}"
+        )
+        return False
+
+
 def main():
-    # Safety lock: LIVE deletion remains disabled.
+    # Safety lock: LIVE deletion is disabled.
     if os.getenv(
         "RETENTION_DELETE_ENABLED", "false"
     ).lower() == "true":
@@ -68,34 +139,35 @@ def main():
     apps = fetch_all(
         db,
         "instructor_applications",
-        "id,decided_at"
+        "id,decided_at",
     )
 
     assessments = fetch_all(
         db,
         "instructor_assessments",
-        "application_id,final_decision"
+        "application_id,final_decision",
     )
 
     recordings = fetch_all(
         db,
         "instructor_recordings",
-        "application_id,recording_type,task_number,storage_path"
+        "id,application_id,recording_type,task_number,storage_path",
     )
 
     jobs = fetch_all(
         db,
         "instructor_retention_jobs",
-        "application_id,status"
+        "application_id,status",
     )
 
     assessment_counts = Counter(
-        a["application_id"] for a in assessments
+        row["application_id"]
+        for row in assessments
     )
 
     assessments_by_id = {
-        a["application_id"]: a
-        for a in assessments
+        row["application_id"]: row
+        for row in assessments
     }
 
     recordings_by_id = {}
@@ -104,11 +176,15 @@ def main():
     for row in recordings:
         aid = row["application_id"]
         recordings_by_id.setdefault(aid, []).append(row)
-        path_counts[row["storage_path"]] += 1
+
+        path = row.get("storage_path")
+
+        if isinstance(path, str):
+            path_counts[path] += 1
 
     jobs_by_id = {
-        j["application_id"]: j["status"]
-        for j in jobs
+        row["application_id"]: row["status"]
+        for row in jobs
     }
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=90)
@@ -117,6 +193,7 @@ def main():
     protected = 0
     review = 0
     existing_jobs = 0
+    errors = 0
 
     for app in apps:
         aid = app["id"]
@@ -133,7 +210,9 @@ def main():
             print(f"REVIEW {aid}: assessment count")
             continue
 
-        if assessments_by_id[aid]["final_decision"] != "rejected":
+        assessment = assessments_by_id[aid]
+
+        if assessment["final_decision"] != "rejected":
             protected += 1
             continue
 
@@ -151,22 +230,25 @@ def main():
         rows = recordings_by_id.get(aid, [])
 
         tasks = {
-            (r["recording_type"], r["task_number"])
-            for r in rows
+            (row["recording_type"], row["task_number"])
+            for row in rows
         }
 
-        paths = [r["storage_path"] for r in rows]
+        paths = [
+            row.get("storage_path")
+            for row in rows
+        ]
 
         valid = (
             len(rows) == 7
             and tasks == EXPECTED
             and len(set(paths)) == 7
             and all(
-                isinstance(p, str)
-                and p.startswith(f"{aid}/")
-                and ".." not in p
-                and path_counts[p] == 1
-                for p in paths
+                isinstance(path, str)
+                and path.startswith(f"{aid}/")
+                and ".." not in path
+                and path_counts[path] == 1
+                for path in paths
             )
         )
 
@@ -175,8 +257,13 @@ def main():
             print(f"REVIEW {aid}: invalid recordings")
             continue
 
+        if not verify_storage_files(db, aid, rows):
+            review += 1
+            print(f"REVIEW {aid}: storage mismatch")
+            continue
+
         eligible += 1
-        print(f"ELIGIBLE {aid}")
+        print(f"ELIGIBLE {aid}: storage verified")
 
     print("----- RETENTION SUMMARY -----")
     print(f"Eligible: {eligible}")
@@ -184,7 +271,7 @@ def main():
     print(f"Needs Manual Review: {review}")
     print(f"Existing Retention Jobs: {existing_jobs}")
     print("Deleted: 0")
-    print("Errors: 0")
+    print(f"Errors: {errors}")
     print("MODE: DRY RUN")
 
 
