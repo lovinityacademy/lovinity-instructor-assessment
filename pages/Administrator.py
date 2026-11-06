@@ -5,8 +5,8 @@ import streamlit as st
 
 from application_database import get_supabase
 
-st.set_page_config(page_title="LOVINITY Administrator", page_icon="🔐", layout="wide")
-st.title("LOVINITY ENGLISH")
+st.set_page_config(page_title="Lovinity Academy -English- Administrator", page_icon="🔐", layout="wide")
+st.title("Lovinity Academy -English-")
 st.subheader("Administrator Dashboard")
 
 # Administrator authentication
