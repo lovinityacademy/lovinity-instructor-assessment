@@ -32,7 +32,7 @@ st.subheader("英語講師採用審査")
 
 
 st.write(
-    "Welcome to the Lovinity Academy "
+    "Welcome to the Lovinity Academy"
     "Instructor Assessment."
 )
 
@@ -183,28 +183,18 @@ if submitted:
         )
 
 if st.session_state.english_score is not None:
-
-    score = st.session_state.english_score
-
-    st.metric(
-        "English Test Score",
-        f"{score}/5"
-    )
-
-    st.progress(score / len(questions))
-
+    st.success("English proficiency test: Completed")
     st.caption(
-        "This five-question quiz is one part of the internal recruitment assessment, "
-        "not an official language proficiency certification."
+        "Your answers are recorded for internal recruitment review. "
+        "Scores and selection decisions are not displayed to applicants. "
+        "This short quiz is not an official language proficiency certification."
     )
 
-    # If answers are changed, the previous
-    # score is not treated as the final result.
+    # Changes after submission of the quiz require the answers to be re-submitted.
     if answers != st.session_state.english_answers:
         st.warning(
-            "Your answers have changed. "
-            "Please click Submit Answers again "
-            "to update your score."
+            "Your answers have changed. Please click Submit Answers again "
+            "before submitting your application."
         )
 
 # -----------------------------------
@@ -397,7 +387,7 @@ st.info(
     "Submission is complete only after a confirmation message and application ID appear below."
 )
 
-st.caption("LOVINITY ENGLISH | Instructor Assessment System")
+st.caption("Lovinity Academy -ENGLISH CLASS- | 英語講師採用審査")
 
 # -----------------------------------
 # Final Submission
