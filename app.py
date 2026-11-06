@@ -7,7 +7,7 @@ from recording_database import save_recording
 # -----------------------------------
 
 st.set_page_config(
-    page_title="LOVINITY Instructor Assessment",
+    page_title="Lovinity Academy -ENGLISH CLASS- 英語講師採用審査",
     page_icon="🎓",
     layout="centered"
 )
@@ -26,10 +26,10 @@ if "english_answers" not in st.session_state:
 # Header
 # -----------------------------------
 
-st.title("LOVINITY ENGLISH")
-st.subheader("Instructor Assessment System")
+st.title("Lovinity Academy -ENGLISH CLASS-")
+st.subheader("英語講師採用審査")
 
-st.info("LOVINITY ENGLISH｜講師採用審査")
+
 
 st.write(
     "Welcome to the LOVINITY ENGLISH "
