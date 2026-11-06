@@ -26,7 +26,7 @@ if "english_answers" not in st.session_state:
 # Header
 # -----------------------------------
 
-st.title("Lovinity Academy -ENGLISH CLASS-")
+st.title("Lovinity Academy -ENGLISH-")
 st.subheader("英語講師採用審査")
 
 
