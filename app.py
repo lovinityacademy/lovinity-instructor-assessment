@@ -1,4 +1,6 @@
 import streamlit as st
+import hashlib
+import json
 from application_database import save_applicant
 from recording_database import save_recording
 
@@ -32,7 +34,7 @@ st.subheader("英語講師採用審査")
 
 
 st.write(
-    "Welcome to the Lovinity Academy"
+    "Welcome to the LOVINITY ENGLISH "
     "Instructor Assessment."
 )
 
@@ -387,7 +389,7 @@ st.info(
     "Submission is complete only after a confirmation message and application ID appear below."
 )
 
-st.caption("Lovinity Academy -ENGLISH CLASS- | 英語講師採用審査")
+st.caption("Lovinity Academy -ENGLISH- | 英語講師採用審査")
 
 # -----------------------------------
 # Final Submission
@@ -428,10 +430,34 @@ email_completed = (
     and "." in applicant_email.split("@")[-1]
 )
 
+st.subheader("Privacy Notice / 個人情報の取り扱い")
+with st.expander("Read the Privacy Notice / 個人情報の取り扱いを確認する", expanded=True):
+    st.markdown("""
+**Lovinity Academy — Instructor Recruitment Privacy Notice**
+
+**Information collected:** Your name, email address, English test answers and results, pronunciation/speaking/teaching demonstration audio recordings, and recruitment assessment results.
+
+**Purpose:** To assess your English proficiency and teaching skills, make recruitment decisions, communicate the outcome, and, if hired, complete necessary contract procedures.
+
+**Retention:** For unsuccessful applicants, application information, assessment results and recordings will be deleted 90 days after the recruitment decision is finalized. For successful applicants, information needed for contract and operational administration will be retained for as long as necessary for those purposes, subject to applicable requirements.
+
+**Access and inquiries:** Access is restricted to authorized recruitment personnel. For inquiries about access, correction, or deletion of your personal information, please contact the LOVINITY ENGLISH recruitment team through the contact channel provided by the organization.
+
+---
+
+**取得する情報：** 氏名、メールアドレス、英語テストの回答・得点、発音・スピーキング・模擬授業の録音、採用評価結果。
+
+**利用目的：** 英語力・指導力の審査、採用可否の判断、選考結果の連絡、採用後の契約手続き。
+
+**保存期間：** 不採用者の応募情報・評価結果・録音は、選考終了から90日後に削除します。採用者については、契約・業務管理に必要な情報を、必要な期間保管します。
+
+**アクセス・お問い合わせ：** 権限を持つ採用担当者が取り扱います。情報の確認・訂正・削除等は、LOVINITY ENGLISHの採用担当窓口へお問い合わせください。
+""")
+
 consent = st.checkbox(
-    "I agree to the processing of my "
-    "application information and recordings "
-    "for instructor recruitment assessment."
+    "I have read and understood the Privacy Notice and agree to the "
+    "collection and use of my application information and audio recordings "
+    "for recruitment assessment. / 上記の個人情報の取り扱いを確認し、同意します。"
 )
 
 ready_to_submit = all([
@@ -462,27 +488,38 @@ if st.session_state.application_submitted:
         st.session_state.application_id
     )
 
+# Keep a stable application ID during retries within the same browser session.
+# This does not prevent duplicates after the browser session is lost.
+submission_fingerprint = hashlib.sha256(json.dumps({
+    "name": applicant_name.strip(),
+    "email": applicant_email.strip().lower(),
+    "answers": st.session_state.english_answers,
+    "score": st.session_state.english_score,
+}, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+if st.session_state.application_id and not st.session_state.application_submitted:
+    st.info("A previous submission was interrupted. You can retry in this browser session without creating a new applicant record, provided your information has not changed.")
+
 if st.button(
     "Submit Application",
     type="primary",
-    disabled=(
-        not ready_to_submit
-        or st.session_state.application_submitted
-    )
+    disabled=not ready_to_submit or st.session_state.application_submitted,
 ):
     with st.spinner("Submitting your application..."):
-        application_id = None
-
         try:
-            # Save applicant information and test results.
-            application_id = save_applicant(
-                applicant_name,
-                applicant_email,
-                st.session_state.english_answers,
-                st.session_state.english_score
-            )
+            if st.session_state.application_id is None:
+                application_id = save_applicant(
+                    applicant_name, applicant_email,
+                    st.session_state.english_answers,
+                    st.session_state.english_score,
+                )
+                st.session_state.application_id = application_id
+                st.session_state.application_fingerprint = submission_fingerprint
+            else:
+                application_id = st.session_state.application_id
+                if st.session_state.get("application_fingerprint") != submission_fingerprint:
+                    raise ValueError("Applicant details changed after partial submission. Contact the administrator before retrying.")
 
-            # Save all seven recordings.
             recording_tasks = [
                 ("pronunciation", 1, "pronunciation_0"),
                 ("pronunciation", 2, "pronunciation_1"),
@@ -490,29 +527,20 @@ if st.button(
                 ("speaking", 1, "speaking_0"),
                 ("speaking", 2, "speaking_1"),
                 ("speaking", 3, "speaking_2"),
-                ("teaching_demo", 1, "teaching_demo")
+                ("teaching_demo", 1, "teaching_demo"),
             ]
-
             for recording_type, task_number, key in recording_tasks:
-                save_recording(
-                    application_id,
-                    recording_type,
-                    task_number,
-                    st.session_state[key]
-                )
+                save_recording(application_id, recording_type, task_number,
+                               st.session_state[key])
 
             st.session_state.application_submitted = True
-            st.session_state.application_id = application_id
-
-            st.success(
-                "Your application has been submitted!"
-            )
-
+            st.success("Your application has been submitted!")
             st.write("Application ID:", application_id)
-
         except Exception:
             st.error(
-                "Submission could not be confirmed. Some information may already "
-                "have been saved. Please contact the administrator before retrying "
-                "to avoid a duplicate application."
+                "Submission could not be completed. Your application may be partially saved. "
+                "If this browser session is still open, you may retry once after checking your connection. "
+                "If the error persists, contact the administrator and provide your Application ID."
             )
+            if st.session_state.application_id:
+                st.write("Application ID:", st.session_state.application_id)
