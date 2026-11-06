@@ -65,10 +65,6 @@ except Exception:
     st.error("Could not load applicant data. Please check the database connection.")
     st.stop()
 
-    except Exception:
-    st.error("Could not load applicant data. Please check the database connection.")
-    st.stop()
-
 st.metric("Applications Loaded", len(applications))
 if not applications:
     st.info("No applications found.")
