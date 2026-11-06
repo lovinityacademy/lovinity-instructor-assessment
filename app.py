@@ -433,7 +433,7 @@ email_completed = (
 st.subheader("Privacy Notice / 個人情報の取り扱い")
 with st.expander("Read the Privacy Notice / 個人情報の取り扱いを確認する", expanded=True):
     st.markdown("""
-**Lovinity Academy — Instructor Recruitment Privacy Notice**
+**Lovinity Academy —English Instructor Recruitment Privacy Notice**
 
 **Information collected:** Your name, email address, English test answers and results, pronunciation/speaking/teaching demonstration audio recordings, and recruitment assessment results.
 
@@ -441,7 +441,7 @@ with st.expander("Read the Privacy Notice / 個人情報の取り扱いを確認
 
 **Retention:** For unsuccessful applicants, application information, assessment results and recordings will be deleted 90 days after the recruitment decision is finalized. For successful applicants, information needed for contract and operational administration will be retained for as long as necessary for those purposes, subject to applicable requirements.
 
-**Access and inquiries:** Access is restricted to authorized recruitment personnel. For inquiries about access, correction, or deletion of your personal information, please contact the LOVINITY ENGLISH recruitment team through the contact channel provided by the organization.
+**Access and inquiries:** Access is restricted to authorized recruitment personnel. For inquiries about access, correction, or deletion of your personal information, please contact the Lovinity Academy recruitment team through the contact channel provided by the organization.
 
 ---
 
@@ -451,7 +451,7 @@ with st.expander("Read the Privacy Notice / 個人情報の取り扱いを確認
 
 **保存期間：** 不採用者の応募情報・評価結果・録音は、選考終了から90日後に削除します。採用者については、契約・業務管理に必要な情報を、必要な期間保管します。
 
-**アクセス・お問い合わせ：** 権限を持つ採用担当者が取り扱います。情報の確認・訂正・削除等は、LOVINITY ENGLISHの採用担当窓口へお問い合わせください。
+**アクセス・お問い合わせ：** 権限を持つ採用担当者が取り扱います。情報の確認・訂正・削除等は、Lovinity Academyの採用担当窓口へお問い合わせください。
 """)
 
 consent = st.checkbox(
