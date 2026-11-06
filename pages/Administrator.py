@@ -365,8 +365,7 @@ if filtered_rows:
                     on_conflict="application_id"
                 )
                 .execute()
-            )
-
+                st.rerun()
             st.success("Assessment saved successfully!")
             st.metric(
                 "Total Assessment Score",
@@ -374,7 +373,7 @@ if filtered_rows:
             )
             st.progress(total_score / 100)
             st.info("Final hiring decisions require human review.")
-            st.rerun()
+          
         except Exception:
             st.error("Assessment could not be saved.")
 
