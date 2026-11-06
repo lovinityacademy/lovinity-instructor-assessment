@@ -374,7 +374,7 @@ if filtered_rows:
             )
             st.progress(total_score / 100)
             st.info("Final hiring decisions require human review.")
-
+            st.rerun()
         except Exception:
             st.error("Assessment could not be saved.")
 
