@@ -578,3 +578,84 @@ if st.button("Preview Linked Data (No Deletion)", key="preview_linked_data"):
             st.warning("This preview checks recording database rows, not whether every Storage object exists. No data or audio files were deleted.")
     except Exception:
         st.error("Could not load deletion preview. No data was changed.")
+
+
+# Restricted one-applicant deletion test. This action is irreversible.
+st.divider()
+st.header("Test Three — Controlled Deletion Test")
+st.warning("Permanent deletion test only. The button below deletes database records and audio objects for the specified test applicant.")
+TEST_ID = "6b4ad470-e1e8-4255-80ac-e3deef8f5af5"
+
+if st.button("Verify Test Three for Deletion", key="verify_test_three_delete"):
+    try:
+        apps = (supabase.table("instructor_applications").select("id,applicant_name")
+                .eq("id", TEST_ID).execute().data or [])
+        assess = (supabase.table("instructor_assessments").select("application_id")
+                  .eq("application_id", TEST_ID).execute().data or [])
+        recs = (supabase.table("instructor_recordings").select("storage_path")
+                .eq("application_id", TEST_ID).execute().data or [])
+        paths = [r.get("storage_path", "") for r in recs]
+        valid = (len(apps) == 1 and apps[0].get("applicant_name") == "Test Three"
+                 and len(assess) == 1 and len(recs) == 7
+                 and len(set(paths)) == 7
+                 and all(isinstance(path, str) and path.startswith(TEST_ID + "/")
+                         and ".." not in path for path in paths))
+        if valid:
+            st.session_state["test_three_verified"] = {"id": TEST_ID, "paths": paths}
+            st.success("Identity, assessment, and seven recording paths verified. This does not confirm Storage object existence.")
+        else:
+            st.session_state.pop("test_three_verified", None)
+            st.error("Verification failed. No deletion is permitted.")
+    except Exception:
+        st.session_state.pop("test_three_verified", None)
+        st.error("Verification failed. No deletion is permitted.")
+
+verified = st.session_state.get("test_three_verified")
+if verified and verified.get("id") == TEST_ID:
+    st.write("**Deletion target:** Test Three")
+    st.code(TEST_ID)
+    st.write("**Recording objects to delete:**")
+    st.code("\n".join(verified["paths"]))
+    confirmation = st.text_input("Type the full Application ID to confirm permanent deletion", key="test_three_confirmation")
+    if st.button("PERMANENTLY DELETE TEST THREE", type="primary", disabled=confirmation != TEST_ID,
+                 key="delete_test_three_now"):
+        st.session_state.pop("test_three_verified", None)
+        try:
+            # Re-read immediately before deletion to avoid acting on a stale preview.
+            apps = (supabase.table("instructor_applications").select("id,applicant_name")
+                    .eq("id", TEST_ID).execute().data or [])
+            recs = (supabase.table("instructor_recordings").select("storage_path")
+                    .eq("application_id", TEST_ID).execute().data or [])
+            paths = [r.get("storage_path", "") for r in recs]
+            if not (len(apps) == 1 and apps[0].get("applicant_name") == "Test Three"
+                    and len(recs) == 7 and set(paths) == set(verified["paths"])):
+                raise RuntimeError("Applicant or recording data changed since verification")
+            # Storage first: never delete metadata if object deletion raises an error.
+            # Storage's response should be checked for any reported failure.
+            storage_result = supabase.storage.from_("instructor-recordings").remove(paths)
+            if isinstance(storage_result, dict) and storage_result.get("error"):
+                raise RuntimeError("Storage reported a deletion error")
+            # Verify that the objects cannot be downloaded before deleting metadata.
+            for path in paths:
+                try:
+                    supabase.storage.from_("instructor-recordings").download(path)
+                except Exception:
+                    continue
+                raise RuntimeError("A recording object remains accessible: " + path)
+            supabase.table("instructor_recordings").delete().eq("application_id", TEST_ID).execute()
+            supabase.table("instructor_assessments").delete().eq("application_id", TEST_ID).execute()
+            supabase.table("instructor_applications").delete().eq("id", TEST_ID).execute()
+            remaining = []
+            for table, field in (("instructor_recordings", "application_id"),
+                                 ("instructor_assessments", "application_id"),
+                                 ("instructor_applications", "id")):
+                result = supabase.table(table).select(field).eq(field, TEST_ID).execute().data or []
+                if result:
+                    remaining.append(table)
+            if remaining:
+                st.error("Deletion was partially completed. Remaining records: " + ", ".join(remaining))
+            else:
+                st.success("Test Three and linked audio/records were deleted. Verify in Supabase before proceeding.")
+        except Exception as exc:
+            st.error("Deletion stopped or was only partially completed: " + str(exc))
+            st.warning("Do not retry blindly. Check Storage and all three tables before another attempt.")
