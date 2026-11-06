@@ -253,3 +253,130 @@ if filtered_rows:
 else:
     st.info("Select a matching applicant to view recordings.")
 
+
+# -----------------------------------
+# Assessment Scoring
+# -----------------------------------
+
+st.divider()
+st.header("Assessment Scoring")
+
+if filtered_rows:
+    try:
+        saved_result = (
+            supabase.table("instructor_assessments")
+            .select("*")
+            .eq("application_id", application_id)
+            .limit(1)
+            .execute()
+        )
+
+        saved_assessment = (
+            saved_result.data[0]
+            if saved_result.data
+            else {}
+        )
+
+    except Exception:
+        st.error("Could not load saved assessment.")
+        st.stop()
+
+    if saved_assessment:
+        st.success("Previously saved assessment loaded.")
+        st.metric(
+            "Saved Total Score",
+            f"{saved_assessment['total_score']}/100"
+        )
+    else:
+        st.info("This applicant has not been assessed yet.")
+
+    with st.form(key=f"assessment_scoring_{application_id}"):
+
+        pronunciation_score = st.slider(
+            "Pronunciation & Intelligibility (30)",
+            min_value=0,
+            max_value=30,
+            value=saved_assessment.get("pronunciation_score", 0)
+        )
+
+        english_score = st.slider(
+            "English Proficiency (25)",
+            min_value=0,
+            max_value=25,
+            value=saved_assessment.get("english_score", 0)
+        )
+
+        teaching_score = st.slider(
+            "Teaching Ability (25)",
+            min_value=0,
+            max_value=25,
+            value=saved_assessment.get("teaching_score", 0)
+        )
+
+        communication_score = st.slider(
+            "Communication (10)",
+            min_value=0,
+            max_value=10,
+            value=saved_assessment.get("communication_score", 0)
+        )
+
+        reliability_score = st.slider(
+            "Professionalism & Reliability (10)",
+            min_value=0,
+            max_value=10,
+            value=saved_assessment.get("reliability_score", 0)
+        )
+
+        save_assessment = st.form_submit_button(
+            "Calculate & Save Assessment"
+        )
+
+    if save_assessment:
+        total_score = (
+            pronunciation_score
+            + english_score
+            + teaching_score
+            + communication_score
+            + reliability_score
+        )
+
+        if total_score >= 85:
+            provisional_result = "pass_candidate"
+        elif total_score >= 70:
+            provisional_result = "further_review"
+        else:
+            provisional_result = "below_threshold"
+
+        assessment_data = {
+            "application_id": application_id,
+            "pronunciation_score": pronunciation_score,
+            "english_score": english_score,
+            "teaching_score": teaching_score,
+            "communication_score": communication_score,
+            "reliability_score": reliability_score,
+            "provisional_result": provisional_result
+        }
+
+        try:
+            (
+                supabase.table("instructor_assessments")
+                .upsert(
+                    assessment_data,
+                    on_conflict="application_id"
+                )
+                .execute()
+            )
+
+            st.success("Assessment saved successfully!")
+            st.metric(
+                "Total Assessment Score",
+                f"{total_score}/100"
+            )
+            st.progress(total_score / 100)
+            st.info("Final hiring decisions require human review.")
+
+        except Exception:
+            st.error("Assessment could not be saved.")
+
+else:
+    st.info("Select an applicant to begin assessment.")
