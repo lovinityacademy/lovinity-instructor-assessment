@@ -176,7 +176,7 @@ try:
         "wav": "audio/wav", "webm": "audio/webm", "ogg": "audio/ogg",
         "m4a": "audio/mp4", "mp3": "audio/mpeg",
     }
-  if not recordings:
+    if not recordings:
         st.info("No recordings found for this applicant.")
     for recording in recordings:
         label = recording_labels.get(recording["recording_type"], recording["recording_type"])
