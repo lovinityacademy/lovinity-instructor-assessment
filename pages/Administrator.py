@@ -42,6 +42,7 @@ supabase = get_supabase()
 # Applicant management
 st.divider()
 st.header("Applicant Management")
+
 try:
     applications = (
         supabase.table("instructor_applications")
@@ -51,6 +52,7 @@ try:
         .execute()
         .data or []
     )
+
     assessments = (
         supabase.table("instructor_assessments")
         .select("*")
@@ -58,6 +60,11 @@ try:
         .execute()
         .data or []
     )
+
+except Exception:
+    st.error("Could not load applicant data. Please check the database connection.")
+    st.stop()
+
     except Exception:
     st.error("Could not load applicant data. Please check the database connection.")
     st.stop()
