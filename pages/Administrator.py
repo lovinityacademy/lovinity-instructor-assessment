@@ -580,99 +580,96 @@ if st.button("Preview Linked Data (No Deletion)", key="preview_linked_data"):
         st.error("Could not load deletion preview. No data was changed.")
 
 
-# Restricted deletion test for ONE synthetic applicant.
-# Note: Storage and PostgREST are not one atomic transaction.
+# 90-day rejection retention — read-only safety audit.
+# This section NEVER calls delete(), storage.remove(), or any write API.
 st.divider()
-st.header("Test Three — Controlled Deletion Test (Safer Version)")
-st.warning("Irreversible test. Do not run until you have backed up any data you need.")
-TEST_ID = "6b4ad470-e1e8-4255-80ac-e3deef8f5af5"
-BUCKET = "instructor-recordings"
-EXPECTED_NAMES = {
-    "pronunciation_1.wav", "pronunciation_2.wav", "pronunciation_3.wav",
-    "speaking_1.wav", "speaking_2.wav", "speaking_3.wav",
-    "teaching_demo_1.wav",
-}
+st.header("90-Day Rejection Retention — Safety Audit (Read Only)")
+st.caption("Checks current rejection decisions and UTC decision dates. This does not delete anything.")
 
 
-def get_target_snapshot():
-    apps = (supabase.table("instructor_applications").select("id,applicant_name")
-            .eq("id", TEST_ID).execute().data or [])
-    assessments = (supabase.table("instructor_assessments").select("application_id")
-                   .eq("application_id", TEST_ID).execute().data or [])
-    recordings = (supabase.table("instructor_recordings").select("storage_path")
-                  .eq("application_id", TEST_ID).execute().data or [])
-    paths = [row.get("storage_path") for row in recordings]
-    expected_paths = {TEST_ID + "/" + name for name in EXPECTED_NAMES}
-    if not (len(apps) == 1 and apps[0].get("applicant_name") == "Test Three"
-            and len(assessments) == 1 and len(recordings) == 7
-            and len(set(paths)) == 7 and set(paths) == expected_paths):
-        raise RuntimeError("Applicant, assessment, or recording paths differ from the expected test data.")
-    return sorted(paths)
+def retention_fetch_all(table_name, columns, page_size=500, max_pages=40):
+    result = []
+    for page in range(max_pages):
+        batch = (supabase.table(table_name).select(columns)
+                 .range(page * page_size, (page + 1) * page_size - 1)
+                 .execute().data or [])
+        result.extend(batch)
+        if len(batch) < page_size:
+            return result
+    raise RuntimeError("Too many records for a complete audit; preview blocked.")
 
 
-def assert_objects_exist(paths):
-    # Downloading is a stronger existence check than relying on metadata alone.
-    for path in paths:
-        data = supabase.storage.from_(BUCKET).download(path)
-        if not data:
-            raise RuntimeError("Missing or empty audio object: " + path)
-
-
-def assert_objects_absent(paths):
-    for path in paths:
-        try:
-            supabase.storage.from_(BUCKET).download(path)
-        except Exception:
-            continue  # A download failure is expected after deletion, but can also mean a service error.
-        raise RuntimeError("Audio object remains downloadable: " + path)
-
-
-if st.button("Verify Test Three and 7 Storage Files (No Deletion)", key="verify_test_three_safe"):
-    st.session_state.pop("test_three_safe_verified", None)
+if st.button("Run 90-Day Safety Audit (No Deletion)", key="retention_safety_audit"):
     try:
-        verified_paths = get_target_snapshot()
-        assert_objects_exist(verified_paths)
-        st.session_state["test_three_safe_verified"] = verified_paths
-        st.success("One application, one assessment, seven metadata rows and seven downloadable audio files verified.")
-    except Exception as exc:
-        st.error("Preflight failed; deletion is blocked: " + str(exc))
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+        app_rows = retention_fetch_all(
+            "instructor_applications", "id,applicant_name,applicant_email,decided_at")
+        assessment_rows = retention_fetch_all(
+            "instructor_assessments", "application_id,final_decision")
+        recording_rows = retention_fetch_all(
+            "instructor_recordings", "application_id,storage_path")
 
-verified_paths = st.session_state.get("test_three_safe_verified")
-if verified_paths:
-    st.write("**Target:** Test Three")
-    st.code(TEST_ID)
-    st.write("**Seven audio paths:**")
-    st.code("\n".join(verified_paths))
-    confirmation = st.text_input("Type the full Application ID to enable irreversible deletion", key="test_three_safe_confirmation")
-    explicit = st.checkbox("I understand this permanently deletes the test applicant and seven recordings.",
-                           key="test_three_safe_acknowledge")
-    if st.button("PERMANENTLY DELETE TEST THREE", type="primary",
-                 disabled=(confirmation != TEST_ID or not explicit), key="delete_test_three_safe"):
-        st.session_state.pop("test_three_safe_verified", None)
-        try:
-            current_paths = get_target_snapshot()
-            if current_paths != verified_paths:
-                raise RuntimeError("Recording paths changed since verification.")
-            assert_objects_exist(current_paths)
-            # Storage first; no database rows are removed unless all files become inaccessible.
-            result = supabase.storage.from_(BUCKET).remove(current_paths)
-            if result is None or (isinstance(result, dict) and (result.get("error") or result.get("errors"))):
-                raise RuntimeError("Storage removal did not report a usable success result.")
-            assert_objects_absent(current_paths)
-            # These three separate API calls cannot be made atomic in this app.
-            supabase.table("instructor_recordings").delete().eq("application_id", TEST_ID).execute()
-            supabase.table("instructor_assessments").delete().eq("application_id", TEST_ID).execute()
-            supabase.table("instructor_applications").delete().eq("id", TEST_ID).execute()
-            remaining = []
-            for table, column in (("instructor_recordings", "application_id"),
-                                  ("instructor_assessments", "application_id"),
-                                  ("instructor_applications", "id")):
-                rows = (supabase.table(table).select(column).eq(column, TEST_ID).execute().data or [])
-                if rows:
-                    remaining.append(table)
-            if remaining:
-                raise RuntimeError("Remaining database rows: " + ", ".join(remaining))
-            st.success("Test Three database rows removed; all seven audio paths were not downloadable after removal.")
-        except Exception as exc:
-            st.error("Deletion stopped or partially completed: " + str(exc))
-            st.warning("Do NOT retry blindly. Inspect all seven Storage objects and all three tables first.")
+        assessments_by_id = {}
+        for item in assessment_rows:
+            assessments_by_id.setdefault(item.get("application_id"), []).append(item)
+        recordings_by_id = {}
+        for item in recording_rows:
+            recordings_by_id.setdefault(item.get("application_id"), []).append(item)
+
+        eligible, protected, attention = [], [], []
+        for app in app_rows:
+            app_id = app["id"]
+            matching = assessments_by_id.get(app_id, [])
+            if len(matching) != 1:
+                attention.append({"Application ID": app_id, "Reason": "Assessment count is not 1"})
+                continue
+            decision = matching[0].get("final_decision")
+            if decision != "rejected":
+                protected.append({"Application ID": app_id, "Decision": decision or "pending"})
+                continue
+            raw_date = app.get("decided_at")
+            if not raw_date:
+                attention.append({"Application ID": app_id, "Reason": "Rejected without decided_at"})
+                continue
+            try:
+                date = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
+                if date.tzinfo is None:
+                    raise ValueError("Timezone missing")
+            except (ValueError, TypeError):
+                attention.append({"Application ID": app_id, "Reason": "Invalid rejection timestamp"})
+                continue
+            if date > cutoff:
+                protected.append({"Application ID": app_id, "Decision": "rejected, under 90 days"})
+                continue
+            linked = recordings_by_id.get(app_id, [])
+            paths = [r.get("storage_path") for r in linked]
+            path_ok = (len(paths) == len(set(paths)) and
+                       all(isinstance(path, str) and path.startswith(app_id + "/")
+                           and ".." not in path for path in paths))
+            if not path_ok:
+                attention.append({"Application ID": app_id, "Reason": "Invalid or duplicate audio path"})
+                continue
+            eligible.append({
+                "Applicant": app.get("applicant_name") or "",
+                "Application ID": app_id,
+                "Rejected At (UTC)": date.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                "Eligible Since (UTC)": (date + timedelta(days=90)).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                "Recording Metadata Rows": len(paths),
+            })
+
+        st.metric("Eligible: Rejected 90+ Days", len(eligible))
+        st.metric("Protected: Not Eligible", len(protected))
+        st.metric("Needs Manual Review", len(attention))
+        if eligible:
+            st.dataframe(eligible, use_container_width=True, hide_index=True)
+        else:
+            st.success("No applicants currently qualify for 90-day deletion.")
+        if attention:
+            st.warning("Some records need manual review and must NOT be auto-deleted.")
+            st.dataframe(attention, use_container_width=True, hide_index=True)
+        st.info("READ ONLY. No applicant records or Storage objects were deleted. "
+                "Audio objects were not downloaded or verified in this audit. "
+                "Automatic deletion is NOT enabled.")
+    except Exception as exc:
+        st.error("Audit could not be completed. No data was changed: " + str(exc))
