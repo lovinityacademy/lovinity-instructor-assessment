@@ -39,6 +39,24 @@ if st.button("Log Out"):
 
 supabase = get_supabase()
 
+
+def sync_rejection_date(application_id, decision, previous_date=None):
+    """Track the first confirmed rejection date for the 90-day retention rule."""
+    if decision == "rejected":
+        decided_at = previous_date or datetime.now(timezone.utc).isoformat()
+    else:
+        decided_at = None
+
+    result = (
+        supabase.table("instructor_applications")
+        .update({"decided_at": decided_at})
+        .eq("id", application_id)
+        .execute()
+    )
+    if not result.data:
+        raise RuntimeError("Could not update the application decision date.")
+    return decided_at
+
 # Applicant management
 st.divider()
 st.header("Applicant Management")
@@ -317,10 +335,19 @@ if save_assessment:
             supabase.table("instructor_assessments").insert({
                 "application_id": application_id, **assessment_data
             }).execute()
+        try:
+            sync_rejection_date(
+                application_id,
+                automatic_decision,
+                selected_app.get("decided_at") if saved_assessment.get("final_decision") == "rejected" else None,
+            )
+        except Exception:
+            st.error("Assessment was saved, but the rejection date could not be updated. Please retry or check Supabase.")
+            st.stop()
         st.session_state["assessment_saved_for"] = application_id
         st.rerun()
-    except Exception as exc:
-        st.error("Assessment could not be saved. Check that the SQL migration was applied.")
+    except Exception:
+        st.error("Assessment could not be saved. Please check the database settings.")
 
 if saved_assessment:
     current_c1 = saved_assessment.get("c1_status") or "unconfirmed"
@@ -357,11 +384,21 @@ if save_decision:
         st.error("Please save the assessment scores before making a final decision.")
     else:
         try:
+            new_decision = option_to_value[selected_decision]
             supabase.table("instructor_assessments").update({
-                "final_decision": option_to_value[selected_decision],
+                "final_decision": new_decision,
                 "decision_notes": decision_notes.strip(),
-                "decision_at": datetime.now(timezone.utc).isoformat(),
+                "decision_at": datetime.now(timezone.utc).isoformat() if new_decision != "pending" else None,
             }).eq("application_id", application_id).execute()
+            try:
+                sync_rejection_date(
+                    application_id,
+                    new_decision,
+                    selected_app.get("decided_at") if saved_decision == "rejected" else None,
+                )
+            except Exception:
+                st.error("Decision was saved, but the rejection date could not be updated. Please retry or check Supabase.")
+                st.stop()
             st.session_state["decision_saved_for"] = application_id
             st.rerun()
         except Exception:
@@ -394,10 +431,10 @@ else:
 Lovinity Academy
 採用担当"""
     else:
-        default_subject = "LOVINITY ENGLISH | 講師選考結果のご連絡"
+        default_subject = "Lovinity Academy | 英語講師選考結果のご連絡"
         default_body = f"""{applicant_name} 様
 
-この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございました。
+この度はLovinity Academy英語講師選考にご応募いただき、誠にありがとうございました。
 
 慎重に選考を進めました結果、誠に残念ながら今回はご希望に添えない結果となりました。
 
