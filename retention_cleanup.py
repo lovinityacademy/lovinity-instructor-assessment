@@ -1,3 +1,4 @@
+
 import os
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -17,32 +18,41 @@ EXPECTED = {
 def fetch_all(db, table, columns):
     rows = []
     offset = 0
+
     while True:
         batch = (
             db.table(table)
             .select(columns)
+            .order("id" if table == "instructor_applications"
+                   else "application_id")
             .range(offset, offset + 999)
             .execute()
             .data or []
         )
+
         rows.extend(batch)
+
         if len(batch) < 1000:
             return rows
+
         offset += 1000
+
 
 def parse_date(value):
     if not value:
         return None
+
     try:
         date = datetime.fromisoformat(
             value.replace("Z", "+00:00")
         )
         return date if date.tzinfo else None
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, AttributeError):
         return None
 
+
 def main():
-    # Safety lock: no destructive operations in this version.
+    # Safety lock: LIVE deletion remains disabled.
     if os.getenv(
         "RETENTION_DELETE_ENABLED", "false"
     ).lower() == "true":
@@ -56,22 +66,36 @@ def main():
     )
 
     apps = fetch_all(
-        db, "instructor_applications", "id,decided_at"
+        db,
+        "instructor_applications",
+        "id,decided_at"
     )
+
     assessments = fetch_all(
-        db, "instructor_assessments",
+        db,
+        "instructor_assessments",
         "application_id,final_decision"
     )
+
     recordings = fetch_all(
-        db, "instructor_recordings",
+        db,
+        "instructor_recordings",
         "application_id,recording_type,task_number,storage_path"
+    )
+
+    jobs = fetch_all(
+        db,
+        "instructor_retention_jobs",
+        "application_id,status"
     )
 
     assessment_counts = Counter(
         a["application_id"] for a in assessments
     )
+
     assessments_by_id = {
-        a["application_id"]: a for a in assessments
+        a["application_id"]: a
+        for a in assessments
     }
 
     recordings_by_id = {}
@@ -82,11 +106,27 @@ def main():
         recordings_by_id.setdefault(aid, []).append(row)
         path_counts[row["storage_path"]] += 1
 
+    jobs_by_id = {
+        j["application_id"]: j["status"]
+        for j in jobs
+    }
+
     cutoff = datetime.now(timezone.utc) - timedelta(days=90)
-    eligible = protected = review = 0
+
+    eligible = 0
+    protected = 0
+    review = 0
+    existing_jobs = 0
 
     for app in apps:
         aid = app["id"]
+
+        job_status = jobs_by_id.get(aid)
+
+        if job_status is not None:
+            existing_jobs += 1
+            print(f"EXISTING JOB {aid}: {job_status}")
+            continue
 
         if assessment_counts[aid] != 1:
             review += 1
@@ -109,10 +149,12 @@ def main():
             continue
 
         rows = recordings_by_id.get(aid, [])
+
         tasks = {
             (r["recording_type"], r["task_number"])
             for r in rows
         }
+
         paths = [r["storage_path"] for r in rows]
 
         valid = (
@@ -140,9 +182,11 @@ def main():
     print(f"Eligible: {eligible}")
     print(f"Protected: {protected}")
     print(f"Needs Manual Review: {review}")
+    print(f"Existing Retention Jobs: {existing_jobs}")
     print("Deleted: 0")
     print("Errors: 0")
     print("MODE: DRY RUN")
+
 
 if __name__ == "__main__":
     main()
