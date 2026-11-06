@@ -284,12 +284,16 @@ if save_assessment:
         and totals["english"] >= 20
         and totals["teaching"] >= 18
     )
-    if total_score >= 85 and meets_requirements:
-        provisional_result = "pass_candidate"
-    elif total_score < 70:
-        provisional_result = "below_threshold"
-    else:
+    # C1未確認はPending。確認済みの審査のみ自動Pass/Reject。
+    if c1_status == "unconfirmed":
         provisional_result = "further_review"
+        automatic_decision = "pending"
+    elif total_score >= 85 and meets_requirements:
+        provisional_result = "pass_candidate"
+        automatic_decision = "passed"
+    else:
+        provisional_result = "below_threshold"
+        automatic_decision = "rejected"
     assessment_data = {
         "pronunciation_score": totals["pronunciation"],
         "english_score": totals["english"],
@@ -300,6 +304,9 @@ if save_assessment:
         "c1_status": c1_status,
         "assessment_notes": assessment_notes.strip(),
         "provisional_result": provisional_result,
+        "final_decision": automatic_decision,
+        "decision_at": datetime.now(timezone.utc).isoformat() if automatic_decision != "pending" else None,
+        "decision_notes": "Automatic assessment decision; administrator may override below.",
     }
     try:
         if saved_assessment:
@@ -319,12 +326,13 @@ if saved_assessment:
     current_c1 = saved_assessment.get("c1_status") or "unconfirmed"
     st.write("**C1 status:**", c1_options.get(current_c1, current_c1))
     st.write("**Provisional result:**", (saved_assessment.get("provisional_result") or "Not calculated").replace("_", " ").title())
-    st.caption("Final decisions require human review and are not automatically changed by rescoring.")
+    st.write("**Automatic decision:**", decision_labels.get(saved_assessment.get("final_decision") or "pending", "Pending"))
+    st.caption("This is an internal automatic screening result. Review before notifying applicants.")
 
 # Final hiring decision
 st.divider()
 st.header("Final Hiring Decision")
-st.caption("Final hiring decisions require human review.")
+st.caption("Automatic result can be manually overridden. Re-saving scores recalculates the automatic decision.")
 option_to_value = {
     "Pending / Further Review": "pending",
     "Pass": "passed",
