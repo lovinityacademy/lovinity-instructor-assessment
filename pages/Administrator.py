@@ -1,7 +1,4 @@
 import hmac
-import smtplib
-import ssl
-from email.message import EmailMessage
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -371,19 +368,17 @@ if save_decision:
             st.error("Could not save the final decision.")
 
 
-# Applicant notification (administrator approval required)
+# Copy-only notification templates (no email delivery or SMTP required)
 st.divider()
-st.header("Applicant Email Notification")
-st.caption("Emails are never sent automatically by scoring or changing a decision.")
+st.header("Applicant Notification Template")
+st.caption("This screen does not send emails. Copy the text and send it yourself using your email service.")
 
 current_decision = saved_assessment.get("final_decision") or "pending"
 recipient_email = (selected_app.get("applicant_email") or "").strip()
 applicant_name = (selected_app.get("applicant_name") or "Applicant").strip()
 
 if current_decision == "pending":
-    st.info("Decision is Pending. Save Pass or Reject before preparing a notification.")
-elif not recipient_email or "@" not in recipient_email:
-    st.warning("Applicant email address is missing or invalid.")
+    st.info("Decision is Pending. Confirm Pass or Reject to prepare the notification text.")
 else:
     if current_decision == "passed":
         default_subject = "LOVINITY ENGLISH | 講師選考結果と次のご案内"
@@ -396,7 +391,7 @@ else:
 
 引き続き、どうぞよろしくお願いいたします。
 
-Lovinity Academy
+LOVINITY ENGLISH
 採用担当"""
     else:
         default_subject = "LOVINITY ENGLISH | 講師選考結果のご連絡"
@@ -409,90 +404,14 @@ Lovinity Academy
 お忙しい中、選考にご協力いただきましたことに心より感謝申し上げます。
 今後のご活躍をお祈り申し上げます。
 
-Lovinity Academy
+LOVINITY ENGLISH
 採用担当"""
 
-    st.write("**Recipient:**", recipient_email)
-    st.write("**Current Decision:**", current_decision.upper())
-    with st.form(key=f"email_notification_{application_id}_{current_decision}"):
-        subject = st.text_input("Email Subject", value=default_subject)
-        body = st.text_area("Email Body", value=default_body, height=280)
-        confirmed = st.checkbox(
-            "I reviewed the recipient, decision, subject and message. I approve sending this email."
-        )
-        send_email = st.form_submit_button("Send Email to Applicant", disabled=False)
-
-    if send_email:
-        if not confirmed:
-            st.error("Please review and approve the email before sending.")
-        elif not subject.strip() or not body.strip():
-            st.error("Subject and message cannot be empty.")
-        else:
-            try:
-                # Read the decision again to avoid sending after a concurrent change.
-                latest_rows = (
-                    supabase.table("instructor_assessments")
-                    .select("final_decision")
-                    .eq("application_id", application_id)
-                    .limit(1).execute().data or []
-                )
-                latest_decision = (latest_rows[0].get("final_decision") if latest_rows else None)
-                if latest_decision != current_decision:
-                    st.error("The decision changed. Reload the page before sending.")
-                else:
-                    required = ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM")
-                    missing = [key for key in required if not st.secrets.get(key)]
-                    if missing:
-                        st.error("Email sending is not configured. Missing Streamlit secrets: " + ", ".join(missing))
-                    else:
-                        message = EmailMessage()
-                        message["From"] = str(st.secrets["SMTP_FROM"])
-                        message["To"] = recipient_email
-                        message["Subject"] = subject.strip()
-                        message.set_content(body.strip())
-                        host = str(st.secrets["SMTP_HOST"])
-                        port = int(st.secrets["SMTP_PORT"])
-                        username = str(st.secrets["SMTP_USER"])
-                        password = str(st.secrets["SMTP_PASSWORD"])
-                        if port == 465:
-                            with smtplib.SMTP_SSL(host, port, timeout=20, context=ssl.create_default_context()) as server:
-                                server.login(username, password)
-                                server.send_message(message)
-                        else:
-                            with smtplib.SMTP(host, port, timeout=20) as server:
-                                server.starttls(context=ssl.create_default_context())
-                                server.login(username, password)
-                                server.send_message(message)
-                        st.success("The email was accepted by the SMTP server.")
-                        try:
-                            supabase.table("instructor_notification_log").insert({
-                                "application_id": application_id,
-                                "recipient_email": recipient_email,
-                                "decision": current_decision,
-                                "subject": subject.strip(),
-                                "body": body.strip(),
-                            }).execute()
-                        except Exception:
-                            st.warning("Email was sent, but notification history could not be saved. Do not resend without checking.")
-            except smtplib.SMTPAuthenticationError as exc:
-                st.error(f"Gmail authentication failed (SMTP {exc.smtp_code}). Check the Google app password in Streamlit Secrets.")
-            except smtplib.SMTPResponseException as exc:
-                st.error(f"SMTP server rejected the request (SMTP {exc.smtp_code}). Check the sender account and SMTP configuration.")
-            except (TimeoutError, ConnectionError, OSError) as exc:
-                st.error(f"SMTP connection failed ({type(exc).__name__}). Streamlit may be unable to reach the mail server. Do not retry until you check Gmail Sent mail.")
-            except Exception as exc:
-                st.error(f"Email operation failed ({type(exc).__name__}). Check the saved decision and SMTP configuration. Do not retry until you check Gmail Sent mail.")
-
-    try:
-        history = (
-            supabase.table("instructor_notification_log")
-            .select("decision,recipient_email,subject,sent_at")
-            .eq("application_id", application_id)
-            .order("sent_at", desc=True)
-            .limit(10).execute().data or []
-        )
-        if history:
-            st.subheader("Notification History")
-            st.dataframe(history, hide_index=True, use_container_width=True)
-    except Exception:
-        st.caption("Notification history is unavailable until the SQL setup is completed.")
+    st.write("**Decision:**", "Pass" if current_decision == "passed" else "Reject")
+    st.write("**Applicant email (copy):**")
+    st.code(recipient_email or "No email address registered", language=None)
+    st.write("**Subject (copy):**")
+    st.code(default_subject, language=None)
+    st.write("**Message (copy):**")
+    st.code(default_body, language=None)
+    st.info("Copy the recipient, subject and message into Gmail. This app does not send emails or record them as sent.")
