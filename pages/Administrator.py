@@ -253,8 +253,3 @@ if filtered_rows:
 else:
     st.info("Select a matching applicant to view recordings.")
 
-    else:
-        st.info("No English answers available.")
-
-else:
-    st.info("Select a matching applicant to view details.")
