@@ -6,9 +6,10 @@ from datetime import datetime, timedelta, timezone
 
 from supabase import create_client
 
+
 BUCKET_NAME = "instructor-recordings"
 
-EXPECTED = {
+EXPECTED_TASKS = {
     ("pronunciation", 1),
     ("pronunciation", 2),
     ("pronunciation", 3),
@@ -16,6 +17,13 @@ EXPECTED = {
     ("speaking", 2),
     ("speaking", 3),
     ("teaching_demo", 1),
+}
+
+ACTIVE_JOB_STATUSES = {
+    "pending",
+    "processing",
+    "storage_deleted",
+    "error",
 }
 
 
@@ -48,7 +56,7 @@ def fetch_all(db, table, columns):
 
 
 def parse_date(value):
-    if not value:
+    if not isinstance(value, str):
         return None
 
     try:
@@ -56,8 +64,58 @@ def parse_date(value):
             value.replace("Z", "+00:00")
         )
         return result if result.tzinfo else None
-    except (ValueError, TypeError, AttributeError):
+    except ValueError:
         return None
+
+
+def expected_path(application_id, recording_type, task_number):
+    return (
+        f"{application_id}/"
+        f"{recording_type}_{task_number}.webm"
+    )
+
+
+def validate_recordings(application_id, rows, global_path_counts):
+    if len(rows) != 7:
+        return False, "recording count is not 7"
+
+    tasks = set()
+    paths = set()
+
+    for row in rows:
+        recording_type = row.get("recording_type")
+        task_number = row.get("task_number")
+        path = row.get("storage_path")
+
+        task = (recording_type, task_number)
+
+        if task not in EXPECTED_TASKS:
+            return False, "unexpected recording task"
+
+        if task in tasks:
+            return False, "duplicate recording task"
+
+        tasks.add(task)
+
+        if path != expected_path(
+            application_id,
+            recording_type,
+            task_number,
+        ):
+            return False, "unexpected storage path"
+
+        if path in paths:
+            return False, "duplicate storage path"
+
+        if global_path_counts[path] != 1:
+            return False, "storage path shared by multiple records"
+
+        paths.add(path)
+
+    if tasks != EXPECTED_TASKS:
+        return False, "missing recording task"
+
+    return True, "valid"
 
 
 def verify_storage_files(db, application_id, recording_rows):
@@ -65,21 +123,19 @@ def verify_storage_files(db, application_id, recording_rows):
         row["storage_path"] for row in recording_rows
     }
 
-    if len(expected_paths) != 7:
-        return False, "duplicate storage paths"
-
-    bucket = db.storage.from_(BUCKET_NAME)
     actual_paths = set()
     pending_folders = [application_id]
-    visited = set()
+    visited_folders = set()
+
+    bucket = db.storage.from_(BUCKET_NAME)
 
     while pending_folders:
         folder = pending_folders.pop()
 
-        if folder in visited:
-            return False, "repeated folder"
+        if folder in visited_folders:
+            return False, "repeated Storage folder"
 
-        visited.add(folder)
+        visited_folders.add(folder)
         offset = 0
 
         while True:
@@ -109,6 +165,7 @@ def verify_storage_files(db, application_id, recording_rows):
                 else:
                     if path in actual_paths:
                         return False, "duplicate Storage listing"
+
                     actual_paths.add(path)
 
             if len(batch) < 100:
@@ -118,7 +175,8 @@ def verify_storage_files(db, application_id, recording_rows):
 
     if actual_paths != expected_paths:
         return False, (
-            f"Storage mismatch: expected={len(expected_paths)}, "
+            f"Storage mismatch: "
+            f"expected={len(expected_paths)}, "
             f"actual={len(actual_paths)}"
         )
 
@@ -126,12 +184,13 @@ def verify_storage_files(db, application_id, recording_rows):
 
 
 def main():
-    # Hard safety lock: no live deletion.
+    # Hard safety lock: deletion is never permitted.
     if os.getenv(
         "RETENTION_DELETE_ENABLED", "false"
-    ).lower() == "true":
+    ).strip().lower() != "false":
         raise RuntimeError(
-            "LIVE deletion is not implemented or authorized."
+            "Deletion is disabled. "
+            "RETENTION_DELETE_ENABLED must be false."
         )
 
     db = create_client(
@@ -140,18 +199,23 @@ def main():
     )
 
     apps = fetch_all(
-        db, "instructor_applications", "id,decided_at"
+        db,
+        "instructor_applications",
+        "id,decided_at",
     )
+
     assessments = fetch_all(
         db,
         "instructor_assessments",
         "application_id,final_decision",
     )
+
     recordings = fetch_all(
         db,
         "instructor_recordings",
         "id,application_id,recording_type,task_number,storage_path",
     )
+
     jobs = fetch_all(
         db,
         "instructor_retention_jobs",
@@ -159,21 +223,25 @@ def main():
     )
 
     assessment_counts = Counter(
-        row["application_id"] for row in assessments
+        row["application_id"]
+        for row in assessments
     )
+
     assessments_by_id = {
-        row["application_id"]: row for row in assessments
+        row["application_id"]: row
+        for row in assessments
     }
 
     recordings_by_id = defaultdict(list)
-    path_counts = Counter()
+    global_path_counts = Counter()
 
     for row in recordings:
-        recordings_by_id[row["application_id"]].append(row)
+        aid = row["application_id"]
+        recordings_by_id[aid].append(row)
 
         path = row.get("storage_path")
         if isinstance(path, str):
-            path_counts[path] += 1
+            global_path_counts[path] += 1
 
     jobs_by_id = {
         row["application_id"]: row["status"]
@@ -193,9 +261,16 @@ def main():
 
         if aid in jobs_by_id:
             existing_jobs += 1
-            print(
-                f"EXISTING JOB {aid}: {jobs_by_id[aid]}"
-            )
+            status = jobs_by_id[aid]
+            print(f"EXISTING JOB {aid}: {status}")
+
+            if status in ACTIVE_JOB_STATUSES:
+                errors += 1
+                print(
+                    f"ERROR {aid}: active retention job "
+                    "requires manual inspection"
+                )
+
             continue
 
         if assessment_counts[aid] != 1:
@@ -220,39 +295,27 @@ def main():
 
         rows = recordings_by_id.get(aid, [])
 
-        tasks = {
-            (row["recording_type"], row["task_number"])
-            for row in rows
-        }
-
-        paths = [row.get("storage_path") for row in rows]
-
-        valid = (
-            len(rows) == 7
-            and tasks == EXPECTED
-            and all(isinstance(path, str) for path in paths)
-            and len(set(paths)) == 7
-            and all(
-                path.startswith(f"{aid}/")
-                and ".." not in path
-                and path_counts[path] == 1
-                for path in paths
-            )
+        valid, reason = validate_recordings(
+            aid,
+            rows,
+            global_path_counts,
         )
 
         if not valid:
             review += 1
-            print(f"REVIEW {aid}: invalid recordings")
+            print(f"REVIEW {aid}: {reason}")
             continue
 
         try:
             storage_ok, reason = verify_storage_files(
-                db, aid, rows
+                db,
+                aid,
+                rows,
             )
         except Exception as exc:
             errors += 1
             print(
-                f"ERROR {aid}: Storage check failed "
+                f"ERROR {aid}: Storage verification failed "
                 f"({type(exc).__name__})"
             )
             continue
@@ -263,7 +326,7 @@ def main():
             continue
 
         eligible += 1
-        print(f"ELIGIBLE {aid}: storage verified")
+        print(f"ELIGIBLE {aid}: all 7 files verified")
 
     print("----- RETENTION SUMMARY -----")
     print(f"Eligible: {eligible}")
