@@ -7,6 +7,11 @@ from supabase import create_client
 
 BUCKET = "instructor-recordings"
 LIVE = os.getenv("RETENTION_DELETE_ENABLED", "false").lower() == "true"
+if LIVE:
+    raise RuntimeError(
+        "LIVE deletion is temporarily disabled until "
+        "the retention safety checks are complete."
+    )
 EXPECTED = {
     ("pronunciation", 1),
     ("pronunciation", 2),
