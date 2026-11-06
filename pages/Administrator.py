@@ -474,8 +474,14 @@ Lovinity Academy
                             }).execute()
                         except Exception:
                             st.warning("Email was sent, but notification history could not be saved. Do not resend without checking.")
-            except Exception:
-                st.error("Email could not be confirmed as sent. Check SMTP settings and delivery logs before retrying.")
+            except smtplib.SMTPAuthenticationError as exc:
+                st.error(f"Gmail authentication failed (SMTP {exc.smtp_code}). Check the Google app password in Streamlit Secrets.")
+            except smtplib.SMTPResponseException as exc:
+                st.error(f"SMTP server rejected the request (SMTP {exc.smtp_code}). Check the sender account and SMTP configuration.")
+            except (TimeoutError, ConnectionError, OSError) as exc:
+                st.error(f"SMTP connection failed ({type(exc).__name__}). Streamlit may be unable to reach the mail server. Do not retry until you check Gmail Sent mail.")
+            except Exception as exc:
+                st.error(f"Email operation failed ({type(exc).__name__}). Check the saved decision and SMTP configuration. Do not retry until you check Gmail Sent mail.")
 
     try:
         history = (
