@@ -5,8 +5,8 @@ import streamlit as st
 
 from application_database import get_supabase
 
-st.set_page_config(page_title="LOVINITY Administrator", page_icon="🔐", layout="wide")
-st.title("LOVINITY ENGLISH")
+st.set_page_config(page_title="Lovinity Administrator", page_icon="🔐", layout="wide")
+st.title("Lovinity Academy -English-")
 st.subheader("Administrator Dashboard")
 
 # Administrator authentication
@@ -421,7 +421,7 @@ else:
         default_subject = "Lovinity Academy | 英語講師選考結果と次のご案内"
         default_body = f"""{applicant_name} 様
 
-この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございます。
+この度はLovinity Academy英語講師選考にご応募いただき、誠にありがとうございます。
 
 審査の結果、次の選考ステップへお進みいただきたいと考えております。
 面接・今後のご案内につきましては、担当者より改めてご連絡いたします。
@@ -452,3 +452,81 @@ Lovinity Academy
     st.write("**Message (copy):**")
     st.code(default_body, language=None)
     st.info("Copy the recipient, subject and message into Gmail. This app does not send emails or record them as sent.")
+
+# Retention preview: read-only; no deletion is performed.
+st.divider()
+st.header("90-Day Retention Review (Preview Only)")
+st.caption("Lists rejected applicants whose rejection date is at least 90 days old. No records or recordings are deleted here.")
+
+from datetime import timedelta
+
+if st.button("Check Records Eligible for Deletion", key="retention_preview"):
+    try:
+        def fetch_all(table_name, columns, rejected_only=False):
+            page_size = 1000
+            max_pages = 20
+            records = []
+            truncated = False
+            for page in range(max_pages):
+                query = supabase.table(table_name).select(columns)
+                if rejected_only:
+                    query = query.eq("final_decision", "rejected")
+                batch = query.range(page * page_size, (page + 1) * page_size - 1).execute().data or []
+                records.extend(batch)
+                if len(batch) < page_size:
+                    break
+            else:
+                truncated = True
+            return records, truncated
+
+        rejection_rows, assessment_truncated = fetch_all(
+            "instructor_assessments", "application_id,final_decision", rejected_only=True
+        )
+        application_rows, application_truncated = fetch_all(
+            "instructor_applications", "id,applicant_name,applicant_email,decided_at"
+        )
+        if assessment_truncated or application_truncated:
+            st.warning("There may be more than 20,000 records. This preview may be incomplete; do not use it to authorize deletion.")
+
+        rejected_ids = {row["application_id"] for row in rejection_rows}
+        cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+        eligible = []
+        missing_dates = 0
+        invalid_dates = 0
+        for applicant in application_rows:
+            if applicant["id"] not in rejected_ids:
+                continue
+            date_text = applicant.get("decided_at")
+            if not date_text:
+                missing_dates += 1
+                continue
+            try:
+                decided = datetime.fromisoformat(date_text.replace("Z", "+00:00"))
+                if decided.tzinfo is None:
+                    invalid_dates += 1
+                    continue
+            except (ValueError, TypeError):
+                invalid_dates += 1
+                continue
+            if decided <= cutoff:
+                eligible.append({
+                    "Applicant": applicant.get("applicant_name") or "",
+                    "Email": applicant.get("applicant_email") or "",
+                    "Application ID": applicant["id"],
+                    "Rejected At (UTC)": decided.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                    "Eligible Since (UTC)": (decided + timedelta(days=90)).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                })
+        eligible.sort(key=lambda row: row["Eligible Since (UTC)"])
+        st.metric("Eligible for Deletion (Preview)", len(eligible))
+        if eligible:
+            st.dataframe(eligible, use_container_width=True, hide_index=True)
+        else:
+            st.success("No rejected applicants are currently eligible for deletion.")
+        if missing_dates:
+            st.warning(f"{missing_dates} rejected applicant(s) have no decided_at date and were excluded.")
+        if invalid_dates:
+            st.warning(f"{invalid_dates} rejected applicant(s) have invalid dates and were excluded.")
+        st.info("Read-only preview: this page does not delete applicant records, assessments, recording metadata, or audio files.")
+    except Exception:
+        st.error("Could not check retention records. No data was deleted.")
+
