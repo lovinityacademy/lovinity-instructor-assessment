@@ -135,16 +135,7 @@ def main():
 
         eligible += 1
         print(f"ELIGIBLE {aid}")
-# Reserve only after the application passes all checks.
-result = db.rpc(
-    "reserve_expired_rejected_application",
-    {"p_application_id": aid},
-).execute()
 
-if result.data is True:
-    print(f"RESERVED {aid}")
-else:
-    print(f"NOT RESERVED {aid}: database conditions changed")
     print("----- RETENTION SUMMARY -----")
     print(f"Eligible: {eligible}")
     print(f"Protected: {protected}")
