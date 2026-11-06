@@ -71,9 +71,8 @@ def parse_date(value):
 def expected_path(application_id, recording_type, task_number):
     return (
         f"{application_id}/"
-        f"{recording_type}_{task_number}.webm"
+        f"{recording_type}_{task_number}.wav"
     )
-
 
 def validate_recordings(application_id, rows, global_path_counts):
     if len(rows) != 7:
