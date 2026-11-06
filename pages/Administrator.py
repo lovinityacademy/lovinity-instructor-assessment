@@ -5,8 +5,8 @@ import streamlit as st
 
 from application_database import get_supabase
 
-st.set_page_config(page_title="Lovinity Administrator", page_icon="🔐", layout="wide")
-st.title("Lovinity Academy -English-")
+st.set_page_config(page_title="LOVINITY Administrator", page_icon="🔐", layout="wide")
+st.title("LOVINITY ENGLISH")
 st.subheader("Administrator Dashboard")
 
 # Administrator authentication
@@ -418,10 +418,10 @@ if current_decision == "pending":
     st.info("Decision is Pending. Confirm Pass or Reject to prepare the notification text.")
 else:
     if current_decision == "passed":
-        default_subject = "Lovinity Academy | 英語講師選考結果と次のご案内"
+        default_subject = "LOVINITY ENGLISH | 講師選考結果と次のご案内"
         default_body = f"""{applicant_name} 様
 
-この度はLovinity Academy英語講師選考にご応募いただき、誠にありがとうございます。
+この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございます。
 
 審査の結果、次の選考ステップへお進みいただきたいと考えております。
 面接・今後のご案内につきましては、担当者より改めてご連絡いたします。
@@ -431,10 +431,10 @@ else:
 Lovinity Academy
 採用担当"""
     else:
-        default_subject = "Lovinity Academy | 英語講師選考結果のご連絡"
+        default_subject = "LOVINITY ENGLISH | 講師選考結果のご連絡"
         default_body = f"""{applicant_name} 様
 
-この度はLovinity Academy英語講師選考にご応募いただき、誠にありがとうございました。
+この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございました。
 
 慎重に選考を進めました結果、誠に残念ながら今回はご希望に添えない結果となりました。
 
@@ -530,3 +530,51 @@ if st.button("Check Records Eligible for Deletion", key="retention_preview"):
     except Exception:
         st.error("Could not check retention records. No data was deleted.")
 
+
+# Individual applicant deletion preview — read-only, no destructive actions.
+st.divider()
+st.header("Applicant Deletion Preview (Read Only)")
+st.caption("Inspect one test applicant and all linked database records and audio paths before building deletion. Nothing is deleted here.")
+
+preview_options = {
+    f"{app.get('applicant_name') or 'Unnamed'} | {str(app['id'])[:8]}": app['id']
+    for app in applications
+}
+preview_label = st.selectbox("Applicant to inspect", list(preview_options), key="deletion_preview_applicant")
+preview_id = preview_options[preview_label]
+if st.button("Preview Linked Data (No Deletion)", key="preview_linked_data"):
+    try:
+        preview_app = (
+            supabase.table("instructor_applications")
+            .select("id,applicant_name,applicant_email,decided_at,status")
+            .eq("id", preview_id).execute().data or []
+        )
+        preview_assessments = (
+            supabase.table("instructor_assessments")
+            .select("application_id,final_decision,decision_at")
+            .eq("application_id", preview_id).execute().data or []
+        )
+        preview_recordings = (
+            supabase.table("instructor_recordings")
+            .select("recording_type,task_number,storage_path")
+            .eq("application_id", preview_id).execute().data or []
+        )
+        if len(preview_app) != 1:
+            st.error("Applicant was not found or the result was ambiguous. Nothing was changed.")
+        else:
+            applicant = preview_app[0]
+            st.write("**Applicant:**", applicant.get("applicant_name") or "(blank)")
+            st.write("**Application ID:**", preview_id)
+            st.write("**Decision:**", preview_assessments[0].get("final_decision") if len(preview_assessments) == 1 else "Not uniquely recorded")
+            st.write("**Rejected at:**", applicant.get("decided_at") or "Not set")
+            st.metric("Application records", len(preview_app))
+            st.metric("Assessment records", len(preview_assessments))
+            st.metric("Recording metadata records", len(preview_recordings))
+            if preview_recordings:
+                st.dataframe([
+                    {"Type": item.get("recording_type"), "Task": item.get("task_number"), "Storage path": item.get("storage_path")}
+                    for item in preview_recordings
+                ], use_container_width=True, hide_index=True)
+            st.warning("This preview checks recording database rows, not whether every Storage object exists. No data or audio files were deleted.")
+    except Exception:
+        st.error("Could not load deletion preview. No data was changed.")
