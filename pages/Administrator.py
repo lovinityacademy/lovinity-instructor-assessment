@@ -384,7 +384,7 @@ else:
         default_subject = "LOVINITY ENGLISH | 講師選考結果と次のご案内"
         default_body = f"""{applicant_name} 様
 
-この度はLOVINITY ENGLISHの講師選考にご応募いただき、誠にありがとうございます。
+この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございます。
 
 審査の結果、次の選考ステップへお進みいただきたいと考えております。
 面接・今後のご案内につきましては、担当者より改めてご連絡いたします。
@@ -397,7 +397,7 @@ Lovinity Academy
         default_subject = "LOVINITY ENGLISH | 講師選考結果のご連絡"
         default_body = f"""{applicant_name} 様
 
-この度はLOVINITY ENGLISHの講師選考にご応募いただき、誠にありがとうございました。
+この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございました。
 
 慎重に選考を進めました結果、誠に残念ながら今回はご希望に添えない結果となりました。
 
