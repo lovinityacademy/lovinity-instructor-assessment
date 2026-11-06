@@ -418,7 +418,7 @@ if current_decision == "pending":
     st.info("Decision is Pending. Confirm Pass or Reject to prepare the notification text.")
 else:
     if current_decision == "passed":
-        default_subject = "LOVINITY ENGLISH | 講師選考結果と次のご案内"
+        default_subject = "Lovinity Academy | 英語講師選考結果と次のご案内"
         default_body = f"""{applicant_name} 様
 
 この度はLovinity Academy 英語講師選考にご応募いただき、誠にありがとうございます。
