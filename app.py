@@ -7,7 +7,8 @@ from recording_database import save_recording
 # -----------------------------------
 
 st.set_page_config(
-    page_title="Lovinity Academy -ENGLISH CLASS- 英語講師採用審査",
+    page_title="Lovinity Academy 
+    -ENGLISH CLASS- 英語講師採用審査",
     page_icon="🎓",
     layout="centered"
 )
@@ -32,7 +33,7 @@ st.subheader("英語講師採用審査")
 
 
 st.write(
-    "Welcome to the LOVINITY ENGLISH "
+    "Welcome to the Lovinity Academy "
     "Instructor Assessment."
 )
 
