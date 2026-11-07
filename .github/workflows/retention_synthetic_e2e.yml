@@ -1,0 +1,120 @@
+
+name: LOVINITY Synthetic End-to-End Retention Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependency
+        run: pip install "supabase>=2,<3"
+
+      - name: Test synthetic-only deletion
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RETENTION_DELETE_ENABLED: "true"
+          RETENTION_TEST_CONFIRM: "DELETE_SYNTHETIC_ONLY"
+          RETENTION_TEST_APPLICATION_ID: "d2e03f1d-6e2e-46c0-9ef9-8726efa90a8e"
+        run: |
+          python - <<'PY'
+          import os
+          from supabase import create_client
+
+          client = create_client(
+              os.environ["SUPABASE_URL"],
+              os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          )
+
+          app_id = os.environ["RETENTION_TEST_APPLICATION_ID"]
+          assert os.environ["RETENTION_TEST_CONFIRM"] == "DELETE_SYNTHETIC_ONLY"
+
+          app = client.table("instructor_applications").select(
+              "applicant_name,applicant_email,status,decided_at"
+          ).eq("id", app_id).single().execute().data
+
+          assert app["applicant_name"] == "RETENTION_SYNTHETIC_TEST_ONLY"
+          assert app["applicant_email"] == "retention-test@example.invalid"
+          assert app["status"] == "rejected"
+
+          recordings = client.table("instructor_recordings").select(
+              "storage_path"
+          ).eq("application_id", app_id).execute().data
+
+          expected = {
+              f"{app_id}/{kind}_{number}.wav"
+              for kind, numbers in (
+                  ("pronunciation", range(1, 4)),
+                  ("speaking", range(1, 4)),
+                  ("teaching_demo", range(1, 2)),
+              )
+              for number in numbers
+          }
+
+          assert {r["storage_path"] for r in recordings} == expected
+
+          bucket = client.storage.from_("instructor-recordings")
+
+          existing = bucket.list(app_id)
+          assert not existing, "Test folder is not empty; stopping safely"
+
+          for path in sorted(expected):
+              bucket.upload(
+                  path,
+                  b"LOVINITY SYNTHETIC TEST AUDIO",
+                  {"content-type": "audio/wav"}
+              )
+
+          uploaded = bucket.list(app_id)
+          assert {item["name"] for item in uploaded} == {
+              path.split("/")[-1] for path in expected
+          }
+
+          print("PASS: Seven synthetic files uploaded")
+          PY
+
+          python .github/workflows/retention_worker_candidate.py
+
+          python - <<'PY'
+          import os
+          from supabase import create_client
+
+          client = create_client(
+              os.environ["SUPABASE_URL"],
+              os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          )
+          app_id = os.environ["RETENTION_TEST_APPLICATION_ID"]
+
+          for table, column in (
+              ("instructor_applications", "id"),
+              ("instructor_assessments", "application_id"),
+              ("instructor_recordings", "application_id"),
+          ):
+              result = client.table(table).select(
+                  "*"
+              ).eq(column, app_id).execute()
+              assert not result.data, f"Still present: {table}"
+
+          assert not client.storage.from_(
+              "instructor-recordings"
+          ).list(app_id)
+
+          print("PASS: Synthetic application deleted")
+          print("PASS: Synthetic assessment deleted")
+          print("PASS: Synthetic recording metadata deleted")
+          print("PASS: Synthetic Storage files deleted")
+          print("SYNTHETIC END-TO-END TEST PASSED")
+          PY
