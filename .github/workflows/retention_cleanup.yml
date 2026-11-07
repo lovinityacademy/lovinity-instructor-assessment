@@ -36,5 +36,5 @@ jobs:
           RETENTION_DELETE_ENABLED: "true"
       
         run: |
-          python retention_cleanup.py
           python retention_production.py
+
