@@ -1,0 +1,162 @@
+
+name: LOVINITY Storage Integration Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RETENTION_DELETE_ENABLED: "false"
+
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install client
+        run: pip install "supabase>=2,<3"
+
+      - name: Test isolated synthetic Storage objects
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from uuid import uuid4
+          from supabase import create_client
+
+          assert os.environ.get("RETENTION_DELETE_ENABLED") == "false"
+
+          db = create_client(
+              os.environ["SUPABASE_URL"],
+              os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          )
+          bucket = db.storage.from_("instructor-recordings")
+
+          names = (
+              [f"pronunciation_{i}.wav" for i in (1, 2, 3)]
+              + [f"speaking_{i}.wav" for i in (1, 2, 3)]
+              + ["teaching_demo_1.wav"]
+          )
+
+          a, b = str(uuid4()), str(uuid4())
+          created = {a: [], b: []}
+          print("Synthetic test IDs:", a, b)
+
+          def paths(uid):
+              return [f"{uid}/{name}" for name in names]
+
+          def listed(uid):
+              items = bucket.list(uid, {"limit": 100})
+              return {
+                  item["name"]
+                  for item in items
+                  if item.get("name")
+              }
+
+          def delete_known(uid, files):
+              allowed = set(paths(uid))
+              if not set(files).issubset(allowed):
+                  raise RuntimeError("Unexpected path blocked")
+              if any(
+                  not path.startswith(uid + "/")
+                  for path in files
+              ):
+                  raise RuntimeError("Cross-folder path blocked")
+              if files:
+                  bucket.remove(files)
+              remaining = listed(uid)
+              if not remaining.issubset(set(names)):
+                  raise RuntimeError("Unexpected object; stop")
+              return remaining
+
+          try:
+              for uid in (a, b):
+                  rows = (
+                      db.table("instructor_applications")
+                      .select("id")
+                      .eq("id", uid)
+                      .limit(1)
+                      .execute()
+                      .data
+                  )
+                  if rows:
+                      raise RuntimeError(
+                          "Test ID matches a real application"
+                      )
+
+              for uid in (a, b):
+                  for path in paths(uid):
+                      bucket.upload(
+                          path,
+                          b"RIFF" + b"\x00" * 40,
+                          {
+                              "content-type": "audio/wav",
+                              "upsert": "false"
+                          }
+                      )
+                      created[uid].append(path)
+
+                  assert listed(uid) == set(names)
+
+              print("PASS 1: Synthetic uploads verified")
+
+              remaining = delete_known(a, paths(a)[:3])
+              assert remaining == set(names[3:])
+              print("PASS 2: Stopped after 3 deletions")
+
+              rest = [
+                  f"{a}/{name}"
+                  for name in sorted(remaining)
+              ]
+              assert not delete_known(a, rest)
+              print("PASS 3: Remaining 4 files deleted")
+
+              assert listed(b) == set(names)
+              print("PASS 4: Other applicant protected")
+
+              try:
+                  delete_known(
+                      a, [f"{a}/unexpected.wav"]
+                  )
+              except RuntimeError:
+                  print("PASS 5: Unexpected path blocked")
+              else:
+                  raise AssertionError(
+                      "Unexpected path was not blocked"
+                  )
+
+              print(
+                  "ALL REAL STORAGE INTEGRATION TESTS PASSED"
+              )
+
+          finally:
+              for uid in (a, b):
+                  if created[uid]:
+                      try:
+                          bucket.remove(created[uid])
+                          remaining = listed(uid)
+                          if remaining:
+                              print(
+                                  "CLEANUP WARNING:",
+                                  uid, sorted(remaining)
+                              )
+                          else:
+                              print("CLEANUP OK:", uid)
+                      except Exception as exc:
+                          print(
+                              "CLEANUP WARNING:",
+                              uid, str(exc)
+                          )
+
+              print(
+                  "Real application database rows were never modified."
+              )
+          PY
