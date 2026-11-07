@@ -28,7 +28,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python retention_worker_candidate.py
+        run: python .github/workflows/retention_worker_candidate.py
 
       - name: Confirm safe mode
         run: echo "LIVE DELETION DISABLED"
