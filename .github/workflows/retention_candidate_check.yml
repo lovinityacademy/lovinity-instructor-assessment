@@ -1,0 +1,34 @@
+
+name: LOVINITY Retention Candidate Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RETENTION_DELETE_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install "supabase>=2,<3"
+
+      - name: Run candidate safety check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python retention_worker_candidate.py
+
+      - name: Confirm safe mode
+        run: echo "LIVE DELETION DISABLED"
