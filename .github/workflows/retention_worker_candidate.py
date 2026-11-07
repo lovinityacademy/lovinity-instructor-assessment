@@ -79,8 +79,12 @@ def process_one(db, uid):
     if len(jobs) > 1:
         fail('Duplicate retention jobs')
     status = jobs[0]['status'] if jobs else None
+   
     if status is None:
+        if storage_names(bucket, uid) != set(FILES):
+            fail('Storage must contain exactly seven files before reservation')
         if db.rpc('reserve_expired_rejected_application', {'p_application_id':uid}).execute().data is not True:
+
             fail('Reservation rejected')
         status = 'pending'
     if status == 'pending':
