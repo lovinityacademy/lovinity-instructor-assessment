@@ -1,6 +1,7 @@
+
 name: 90-Day Rejected Applicant Retention
 
-"on":
+on:
   workflow_dispatch:
   schedule:
     - cron: "15 2 * * *"
@@ -34,4 +35,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RETENTION_DELETE_ENABLED: "false"
-       run: python retention_cleanup.py && python .github/workflows/retention_worker_candidate.py
+        run: |
+          python retention_cleanup.py
+          python .github/workflows/retention_worker_candidate.py
