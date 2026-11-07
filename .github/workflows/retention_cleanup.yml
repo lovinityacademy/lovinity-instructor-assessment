@@ -33,7 +33,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          RETENTION_DELETE_ENABLED: "false"
+          RETENTION_DELETE_ENABLED: "true"
       
         run: |
           python retention_cleanup.py
