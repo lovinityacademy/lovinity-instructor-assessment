@@ -1,5 +1,11 @@
 
-"""LOVINITY ENGLISH - 90-day rejected applicant retention."""
+"""LOVINITY ENGLISH - rejected applicant retention worker.
+
+Production deletion is disabled unless explicitly enabled.
+Only rejected applications at least 90 days past decided_at
+may be processed. All destructive transitions are guarded
+by existing Supabase database RPCs.
+"""
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -13,6 +19,7 @@ FILES = {
     *(f"speaking_{i}.wav" for i in range(1, 4)),
     "teaching_demo_1.wav",
 }
+PAGE_SIZE = 500
 
 
 def require(condition, message):
@@ -24,11 +31,30 @@ def rows(response):
     return response.data or []
 
 
+def fetch_all(query_factory):
+    result = []
+    offset = 0
+    while True:
+        batch = rows(
+            query_factory().range(
+                offset, offset + PAGE_SIZE - 1
+            ).execute()
+        )
+        result.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            return result
+        offset += PAGE_SIZE
+
+
 def storage_names(bucket, uid):
     entries = bucket.list(uid, {"limit": 1000}) or []
-    names = [item["name"] for item in entries]
-    require(len(entries) < 1000, "Storage listing truncated")
-    require(len(names) == len(set(names)), "Duplicate Storage entries")
+    names = [item.get("name") for item in entries]
+    require(
+        len(entries) < 1000
+        and all(names)
+        and len(names) == len(set(names)),
+        "Unsafe Storage listing",
+    )
     return set(names)
 
 
@@ -36,29 +62,33 @@ def rpc(db, function, uid):
     result = db.rpc(
         function, {"p_application_id": uid}
     ).execute()
-    require(result.data is True, f"RPC refused: {function}")
+    require(
+        result.data is True,
+        f"Database refused: {function}",
+    )
 
 
 def validate(db, uid):
     UUID(uid)
 
-    applications = rows(
+    apps = rows(
         db.table("instructor_applications")
         .select("id,status,decided_at")
         .eq("id", uid).execute()
     )
-    require(len(applications) == 1, "Application missing")
-    app = applications[0]
+    require(len(apps) == 1, "Application missing")
 
+    app = apps[0]
     require(app["status"] == "rejected", "Not rejected")
-    require(app["decided_at"], "Missing rejection date")
+    require(app["decided_at"], "Missing decision date")
 
     decided = datetime.fromisoformat(
         app["decided_at"].replace("Z", "+00:00")
     )
     require(
         decided.tzinfo is not None
-        and decided <= datetime.now(timezone.utc) - timedelta(days=90),
+        and decided <= datetime.now(timezone.utc)
+        - timedelta(days=90),
         "Retention period not reached",
     )
 
@@ -70,7 +100,7 @@ def validate(db, uid):
     require(
         len(assessments) == 1
         and assessments[0]["final_decision"] == "rejected",
-        "Assessment is not rejected",
+        "Assessment mismatch",
     )
 
     recordings = rows(
@@ -81,27 +111,31 @@ def validate(db, uid):
     expected = {f"{uid}/{name}" for name in FILES}
     require(
         len(recordings) == 7
-        and {r["storage_path"] for r in recordings} == expected,
+        and {r["storage_path"] for r in recordings}
+        == expected,
         "Recording metadata mismatch",
     )
 
 
-def process(db, uid):
-    validate(db, uid)
-    bucket = db.storage.from_(BUCKET)
-
+def job_status(db, uid):
     jobs = rows(
         db.table("instructor_retention_jobs")
         .select("status")
         .eq("application_id", uid).execute()
     )
-    require(len(jobs) <= 1, "Duplicate retention jobs")
-    status = jobs[0]["status"] if jobs else None
+    require(len(jobs) <= 1, "Duplicate jobs")
+    return jobs[0]["status"] if jobs else None
+
+
+def process(db, uid):
+    validate(db, uid)
+    bucket = db.storage.from_(BUCKET)
+    status = job_status(db, uid)
 
     if status is None:
         require(
             storage_names(bucket, uid) == FILES,
-            "Storage files do not match expected seven",
+            "Expected seven Storage files",
         )
         rpc(db, "reserve_expired_rejected_application", uid)
         status = "pending"
@@ -118,7 +152,7 @@ def process(db, uid):
         remaining = storage_names(bucket, uid)
         require(
             remaining.issubset(FILES),
-            "Unexpected Storage files found",
+            "Unexpected Storage files",
         )
 
         validate(db, uid)
@@ -138,14 +172,43 @@ def process(db, uid):
     if status == "storage_deleted":
         require(
             not storage_names(bucket, uid),
-            "Storage is not empty",
+            "Storage not empty",
         )
         validate(db, uid)
         rpc(db, "delete_expired_rejected_application", uid)
         print("DELETED:", uid)
         return
 
-    raise RuntimeError(f"Unexpected job status: {status}")
+    raise RuntimeError(f"Unsupported job status: {status}")
+
+
+def candidates(db):
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=90)
+    ).isoformat()
+
+    eligible = fetch_all(
+        lambda: db.table("instructor_applications")
+        .select("id")
+        .eq("status", "rejected")
+        .lte("decided_at", cutoff)
+        .order("id")
+    )
+
+    unfinished = fetch_all(
+        lambda: db.table("instructor_retention_jobs")
+        .select("application_id")
+        .in_(
+            "status",
+            ["pending", "processing", "storage_deleted", "error"],
+        )
+        .order("application_id")
+    )
+
+    return sorted(
+        {item["id"] for item in eligible}
+        | {item["application_id"] for item in unfinished}
+    )
 
 
 def main():
@@ -154,43 +217,45 @@ def main():
         os.environ["SUPABASE_SERVICE_ROLE_KEY"],
     )
 
-    enabled = (
-        os.getenv("RETENTION_DELETE_ENABLED", "false").lower()
-        == "true"
-    )
+    ids = candidates(db)
+    print("Candidates:", len(ids))
 
-    applications = rows(
-        db.table("instructor_applications")
-        .select("id,status,decided_at")
-        .eq("status", "rejected")
-        .lte(
-            "decided_at",
-            (
-                datetime.now(timezone.utc) - timedelta(days=90)
-            ).isoformat(),
-        )
-        .execute()
-    )
-
-    print("Eligible candidates:", len(applications))
-
-    if not enabled:
-        print("DRY RUN: deletion disabled")
+    if os.getenv(
+        "RETENTION_DELETE_ENABLED", "false"
+    ).lower() != "true":
+        print("DRY RUN: no data deleted")
         return
 
     failures = []
 
-    for app in applications:
-        uid = app["id"]
+    for uid in ids:
         try:
             process(db, uid)
         except Exception as exc:
-            print(f"SKIPPED {uid}: {exc}", file=sys.stderr)
+            print(
+                f"MANUAL REVIEW {uid}: {exc}",
+                file=sys.stderr,
+            )
             failures.append(uid)
+
+            try:
+                if job_status(db, uid) == "processing":
+                    db.rpc(
+                        "record_retention_cleanup_error",
+                        {
+                            "p_application_id": uid,
+                            "p_error_message": str(exc)[:1000],
+                        },
+                    ).execute()
+            except Exception as log_error:
+                print(
+                    f"Error logging failed: {log_error}",
+                    file=sys.stderr,
+                )
 
     if failures:
         raise RuntimeError(
-            f"{len(failures)} application(s) need manual review"
+            f"{len(failures)} application(s) require review"
         )
 
     print("Retention cleanup completed")
