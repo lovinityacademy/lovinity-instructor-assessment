@@ -1,0 +1,42 @@
+
+name: LOVINITY Retention Full Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      RETENTION_DELETE_ENABLED: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Supabase
+        run: pip install "supabase>=2,<3"
+
+      - name: Test recovery simulation
+        run: python retention_recovery_test.py
+
+      - name: Check retention in Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python retention_cleanup.py
+
+      - name: Confirm safe mode
+        run: |
+          echo "FULL CHECK COMPLETED"
+          echo "LIVE DELETION DISABLED"
